@@ -201,9 +201,10 @@
             </div>
            <div class="card" style="border: 2px solid var(--4race-coral);">
                 <div class="card-title">🗺️ CIRCUIT DE LA COURSE & RÉGLEMENTATION</div>
+                
                 <div class="form-group">
                     <label>Sélectionner un tracé type :</label>
-                    <select id="setup-circuit" style="font-weight: bold;" onchange="window.handleCircuitRegulationChange(this.value)">
+                    <select id="setup-circuit" style="font-weight: bold; background: #16161f; color: #fff; padding: 10px; border-radius: 6px;" onchange="window.handleCircuitRegulationChange(this.value)">
                         <option value="SPA" selected>Spa-Francorchamps (25h - Limite Roulage Pilote)</option>
                         <option value="Castellet">Castellet (8h - Fenêtres Fixes)</option>
                         <option value="Dijon">Dijon-Prenois (Fenêtres Fixes)</option>
@@ -213,26 +214,26 @@
                     </select>
                 </div>
                 
-                <!-- Zone de configuration avancée pour ajouter n'importe quel type de course -->
-                <div id="custom-reg-zone" style="display:none; border-top:1px solid #222; margin-top:15px; padding-top:15px; grid-template-columns: 1fr 1fr; gap:10px;">
+                <!-- Cette zone est désormais toujours affichée pour te laisser libre de TOUT modifier -->
+                <div id="custom-reg-zone" style="border-top:1px solid #222; margin-top:15px; padding-top:15px; display: grid; grid-template-columns: 1fr 1fr; gap:12px;">
                     <div class="form-group">
-                        <label>Type de restriction</label>
-                        <select id="reg-mode" onchange="window.saveCustomRegulation()">
+                        <label>Type de restriction de la course</label>
+                        <select id="reg-mode" style="background: #111;" onchange="window.saveCustomRegulation()">
                             <option value="TIME_LIMIT">⏱️ Temps Max Pilote (ex: Spa)</option>
-                            <option value="WINDOW_LIMIT">🎟️ Fenêtre d'arrêt (ex: Courses de 8h)</option>
+                            <option value="WINDOW_LIMIT">🎟️ Fenêtre d'arrêt (ex: Cloches/Tours)</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label id="lbl-reg-val">Valeur de la limite (Minutes)</label>
-                        <input type="number" id="reg-limit-value" value="90" onchange="window.saveCustomRegulation()">
+                        <label id="lbl-reg-val">Valeur de la limite (Minutes ou Tours)</label>
+                        <input type="number" id="reg-limit-value" value="90" style="background: #111; font-weight: bold;" onchange="window.saveCustomRegulation()">
                     </div>
                     <div class="form-group">
                         <label>Chrono réf. SEC (sec)</label>
-                        <input type="number" id="reg-ref-sec" value="185" onchange="window.saveCustomRegulation()">
+                        <input type="number" id="reg-ref-sec" value="185" style="background: #111;" onchange="window.saveCustomRegulation()">
                     </div>
                     <div class="form-group">
                         <label>Chrono réf. PLUIE (sec)</label>
-                        <input type="number" id="reg-ref-pluie" value="205" onchange="window.saveCustomRegulation()">
+                        <input type="number" id="reg-ref-pluie" value="205" style="background: #111;" onchange="window.saveCustomRegulation()">
                     </div>
                 </div>
             </div>
@@ -747,30 +748,76 @@
 
         buildHTMLElementsStructure();
         window.handleCircuitRegulationChange = function(val) {
-                    window.selectedCircuit = val;
-                    const targetCircuit = window.circuitsDatabase[val];
-                    if (!targetCircuit) return;
-        
-                    // On réaligne automatiquement les consommations de base de la flotte selon le circuit choisi
-                    for(let i=1; i<=6; i++) {
-                        let id = "v" + i;
-                        if (window.fleetState[id]) {
-                            for(let p=1; p<=4; p++) {
-                                window.fleetState[id].conso[p].sec = targetCircuit.defaultConso;
-                            }
-                        }
+            window.selectedCircuit = val;
+            
+            if (val === "CUSTOM") {
+                window.saveCustomRegulation();
+                return;
+            }
+            
+            const targetCircuit = window.circuitsDatabase[val];
+            if (!targetCircuit) return;
+
+            // On pré-remplit les cases du formulaire pour information
+            document.getElementById("reg-mode").value = targetCircuit.mode;
+            document.getElementById("reg-limit-value").value = targetCircuit.mode === "TIME_LIMIT" ? 90 : 40;
+            document.getElementById("reg-ref-sec").value = targetCircuit.refSec;
+            document.getElementById("reg-ref-pluie").value = targetCircuit.refPluie;
+
+            // Alignement des consommations de base des pilotes
+            for(let i=1; i<=6; i++) {
+                let id = "v" + i;
+                if (window.fleetState[id]) {
+                    for(let p=1; p<=4; p++) {
+                        window.fleetState[id].conso[p].sec = targetCircuit.defaultConso;
                     }
-        
-                    // On pousse la mise à jour sur Firebase pour synchroniser les ordinateurs du muret et du box
-                    window.dbPushFullRaceState();
-                    window.updateVisualsFromState();
-                };
+                }
+            }
+
+            window.dbPushFullRaceState();
+            window.updateVisualsFromState();
+        };
+
+        window.saveCustomRegulation = function() {
+            // On force le sélecteur sur CUSTOM dès qu'on touche à une case à la main
+            window.selectedCircuit = "CUSTOM";
+            document.getElementById("setup-circuit").value = "CUSTOM";
+            
+            const mode = document.getElementById("reg-mode").value;
+            const limitVal = parseInt(document.getElementById("reg-limit-value").value) || 40;
+            const rSec = parseInt(document.getElementById("reg-ref-sec").value) || 120;
+            const rPluie = parseInt(document.getElementById("reg-ref-pluie").value) || 140;
+            
+            window.circuitsDatabase["CUSTOM"] = {
+                name: "Configuration Personnalisée",
+                mode: mode,
+                refSec: rSec,
+                refPluie: rPluie,
+                defaultConso: 1.40,
+                limitValue: limitVal
+            };
+            
+            const lbl = document.getElementById("lbl-reg-val");
+            if(lbl) lbl.innerText = mode === "TIME_LIMIT" ? "Temps Conduite Max (Minutes)" : "Fenêtre Pit ouverte tous les (Tours)";
+
+            window.dbPushFullRaceState();
+            window.updateVisualsFromState();
+        };
         
 
         onValue(ref(db, 'strategie_flotte'), (snapshot) => {
             const data = snapshot.val(); if(!data) return;
             window.isFCY = data.isFCY || false; window.isRedFlag = data.isRedFlag || false; window.weatherMode = data.weatherMode || "sec";
             window.selectedCircuit = data.selectedCircuit || "SPA";
+
+            // Restauration des inputs de configuration réglementaire à l'écran
+            if (data.selectedCircuit === "CUSTOM" && data.circuitsDatabase?.CUSTOM) {
+                window.circuitsDatabase["CUSTOM"] = data.circuitsDatabase.CUSTOM;
+                document.getElementById("reg-mode").value = data.circuitsDatabase.CUSTOM.mode;
+                document.getElementById("reg-limit-value").value = data.circuitsDatabase.CUSTOM.limitValue;
+                document.getElementById("reg-ref-sec").value = data.circuitsDatabase.CUSTOM.refSec;
+                document.getElementById("reg-ref-pluie").value = data.circuitsDatabase.CUSTOM.refPluie;
+            }
 
             for(let i=1; i<=6; i++) {
                 let id = "v" + i; if(!data.cars || !data.cars[id]) continue;
