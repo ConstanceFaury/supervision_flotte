@@ -241,11 +241,12 @@
         </div>
     </div>
 
-    <div id="car-drawer" class="drawer">
+    <<div id="car-drawer" class="drawer">
         <div class="drawer-header">
             <h2 id="drawer-car-title" style="font-style: italic;">Configuration Stratégie</h2>
-            <button class="drawer-close" onclick="document.getElementById('car-drawer').classList.remove('open')">✕</button>
+            <button class="drawer-close" onclick="closeDrawer()">✕</button>
         </div>
+        
         <div style="border-bottom: 1px solid var(--4race-card-border); padding-bottom: 15px;">
             <h4 style="font-size:12px; color:var(--4race-coral); margin-bottom:12px; text-transform:uppercase;">📊 Fiche Consos Étalon (Données SEC)</h4>
             <div class="form-row">
@@ -257,10 +258,11 @@
                 <div class="form-group"><label id="lbl-drawer-p4">Pilote 4</label><input type="number" id="drawer-c-p4" step="0.01" onchange="saveDrawerConfig()"></div>
             </div>
         </div>
+
         <div style="border-bottom: 1px solid var(--4race-card-border); padding-bottom: 15px; background: rgba(0,0,0,0.15); padding: 12px; border-radius: 8px;">
-            <div style="color: #00bc8c; font-weight: bold; font-size: 12px; display: flex; justify-content: space-between; margin-bottom: 12px;">
+            <div style="color: #00bc8c; font-weight: bold; font-size: 12px; display: flex; justify-content: space-between; margin-bottom: 12px; font-style: italic;">
                 <span>🧮 DEBRIEF FLASH CONSO</span>
-                <span id="drawer-flash-result" style="color: #f39c12; font-family: monospace;">--.- L/tr</span>
+                <span id="drawer-flash-result" style="color: #f39c12; font-family: monospace; font-size: 13px; font-weight: bold;">--.- L/tr</span>
             </div>
             <div class="form-group">
                 <label>Pilote concerné</label>
@@ -268,25 +270,35 @@
             </div>
             <div class="form-group">
                 <label>Essence brûlée (L)</label>
-                <input type="number" id="drawer-flash-fuel" step="0.01" placeholder="ex: 34.50">
+                <input type="number" id="drawer-flash-fuel" step="0.01" placeholder="ex: 34.50" style="font-weight: bold; font-family: monospace;">
             </div>
             <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:12px 16px; text-align:center;">
-                <div style="display:flex; flex-direction:column; gap:4px;">
-                    <label style="font-size:9px; color:#22C55E; font-weight:bold;">SEC</label>
-                    <input type="number" id="drawer-flash-sec" value="0">
+                <div class="form-group">
+                    <label style="font-size:9px; color:#22C55E; font-weight:bold; text-transform:uppercase;">SEC</label>
+                    <input type="number" id="drawer-flash-sec" value="0" style="padding:10px; text-align:center; font-size:13px; background:#16161f; border:1px solid var(--4race-card-border); color:#fff; border-radius:6px; width:100%;">
                 </div>
-                <div style="display:flex; flex-direction:column; gap:4px;">
-                    <label style="font-size:9px; color:#3498db; font-weight:bold;">PLUIE</label>
-                    <input type="number" id="drawer-flash-pluie" value="0">
+                <div class="form-group">
+                    <label style="font-size:9px; color:#3498db; font-weight:bold; text-transform:uppercase;">PLUIE</label>
+                    <input type="number" id="drawer-flash-pluie" value="0" style="padding:10px; text-align:center; font-size:13px; background:#16161f; border:1px solid var(--4race-card-border); color:#fff; border-radius:6px; width:100%;">
+                </div>
+                <div class="form-group">
+                    <label style="font-size:9px; color:#9b59b6; font-weight:bold; text-transform:uppercase;">DÉLUGE</label>
+                    <input type="number" id="drawer-flash-deluge" value="0" style="padding:10px; text-align:center; font-size:13px; background:#16161f; border:1px solid var(--4race-card-border); color:#fff; border-radius:6px; width:100%;">
+                </div>
+                <div class="form-group">
+                    <label style="font-size:9px; color:#f1c40f; font-weight:bold; text-transform:uppercase;">FCY</label>
+                    <input type="number" id="drawer-flash-fcy" value="0" style="padding:10px; text-align:center; font-size:13px; background:#16161f; border:1px solid var(--4race-card-border); color:#fff; border-radius:6px; width:100%;">
                 </div>
             </div>
+
             <div class="form-row" style="margin-top:15px;">
-                <button class="ctrl-btn" style="background:#e67e22; color:white;" onclick="executerCalculFlashDrawer()">🧮 Calculer</button>
-                <button class="ctrl-btn" id="btn-apply-flash-drawer" style="background:#7f8c8d; color:white;" disabled onclick="injecterFlashDrawer()">📥 Injecter</button>
+                <button class="ctrl-btn" style="background:#e67e22; color:white; font-size:11px; padding:10px 0;" onclick="executerCalculFlashDrawer()">🧮 Calculer</button>
+                <button class="ctrl-btn" id="btn-apply-flash-drawer" style="background:#7f8c8d; color:white; font-size:11px; padding:10px 0;" disabled onclick="injecterFlashDrawer()">📥 Injecter</button>
             </div>
         </div>
+
         <div style="border-bottom: 1px solid var(--4race-card-border); padding-bottom: 15px;">
-            <h4 style="font-size:12px; color:var(--state-fcy); margin-bottom:12px; text-transform:uppercase;">📋 Rotation Prochains Relais</h4>
+            <h4 style="font-size:12px; color:var(--state-fcy); margin-bottom:12px; text-transform:uppercase;">📋 Rotation des Prochains Relais</h4>
             <div class="form-row">
                 <div class="form-group"><label>Relais Actuel</label><select id="drawer-rot-r1" onchange="saveDrawerConfig()"></select></div>
                 <div class="form-group"><label>Relais N+1</label><select id="drawer-rot-r2" onchange="saveDrawerConfig()"></select></div>
@@ -296,11 +308,12 @@
                 <div class="form-group"><label>Relais N+3</label><select id="drawer-rot-r4" onchange="saveDrawerConfig()"></select></div>
             </div>
         </div>
+
         <div>
-            <h4 style="font-size:12px; color:#fff; margin-bottom:12px; text-transform:uppercase; font-style:italic;">🔮 Planificateur Énergie/Temps (Double Verrou)</h4>
+            <h4 style="font-size:12px; color:#fff; margin-bottom:12px; text-transform:uppercase; font-style:italic;">🔮 Planificateur Prédictif</h4>
             <table style="font-size:11px;">
                 <thead>
-                    <tr><th>Relais</th><th>Pilote</th><th>Autonomie Maximale Sécurisée</th></tr>
+                    <tr><th>Relais</th><th>Pilote</th><th>Autonomie</th></tr>
                 </thead>
                 <tbody id="drawer-plan-body"></tbody>
             </table>
