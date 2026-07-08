@@ -215,6 +215,7 @@
                 </div>
                 
                 <!-- Cette zone est désormais toujours affichée pour te laisser libre de TOUT modifier -->
+               <!-- Zone de configuration avancée toujours affichée -->
                 <div id="custom-reg-zone" style="border-top:1px solid #222; margin-top:15px; padding-top:15px; display: grid; grid-template-columns: 1fr 1fr; gap:12px;">
                     <div class="form-group">
                         <label>Type de restriction de la course</label>
@@ -234,6 +235,11 @@
                     <div class="form-group">
                         <label>Chrono réf. PLUIE (sec)</label>
                         <input type="number" id="reg-ref-pluie" value="205" style="background: #111;" onchange="window.saveCustomRegulation()">
+                    </div>
+                    <!-- ⛽ NOUVELLE CASE : CONSO PAR DÉFAUT -->
+                    <div class="form-group" style="grid-column: span 2;">
+                        <label style="color: var(--4race-coral);">⛽ Consommation de référence par défaut (L/tour)</label>
+                        <input type="number" id="reg-default-conso" value="1.77" step="0.01" style="background: #111; border-color: var(--4race-coral); font-weight: bold; color: #fff;" onchange="window.saveCustomRegulation()">
                     </div>
                 </div>
             </div>
@@ -758,13 +764,14 @@
             const targetCircuit = window.circuitsDatabase[val];
             if (!targetCircuit) return;
 
-            // On pré-remplit les cases du formulaire pour information
+            // On pré-remplit les cases du formulaire selon le circuit pré-enregistré
             document.getElementById("reg-mode").value = targetCircuit.mode;
             document.getElementById("reg-limit-value").value = targetCircuit.mode === "TIME_LIMIT" ? 90 : 40;
             document.getElementById("reg-ref-sec").value = targetCircuit.refSec;
             document.getElementById("reg-ref-pluie").value = targetCircuit.refPluie;
+            document.getElementById("reg-default-conso").value = targetCircuit.defaultConso;
 
-            // Alignement des consommations de base des pilotes
+            // Alignement des consommations de base de la flotte
             for(let i=1; i<=6; i++) {
                 let id = "v" + i;
                 if (window.fleetState[id]) {
@@ -779,7 +786,6 @@
         };
 
         window.saveCustomRegulation = function() {
-            // On force le sélecteur sur CUSTOM dès qu'on touche à une case à la main
             window.selectedCircuit = "CUSTOM";
             document.getElementById("setup-circuit").value = "CUSTOM";
             
@@ -787,15 +793,27 @@
             const limitVal = parseInt(document.getElementById("reg-limit-value").value) || 40;
             const rSec = parseInt(document.getElementById("reg-ref-sec").value) || 120;
             const rPluie = parseInt(document.getElementById("reg-ref-pluie").value) || 140;
+            const defConso = parseFloat(document.getElementById("reg-default-conso").value) || 1.50;
             
+            // Écriture dans la base de données locale
             window.circuitsDatabase["CUSTOM"] = {
                 name: "Configuration Personnalisée",
                 mode: mode,
                 refSec: rSec,
                 refPluie: rPluie,
-                defaultConso: 1.40,
+                defaultConso: defConso,
                 limitValue: limitVal
             };
+
+            // On injecte immédiatement la nouvelle conso personnalisée à toute la flotte
+            for(let i=1; i<=6; i++) {
+                let id = "v" + i;
+                if (window.fleetState[id]) {
+                    for(let p=1; p<=4; p++) {
+                        window.fleetState[id].conso[p].sec = defConso;
+                    }
+                }
+            }
             
             const lbl = document.getElementById("lbl-reg-val");
             if(lbl) lbl.innerText = mode === "TIME_LIMIT" ? "Temps Conduite Max (Minutes)" : "Fenêtre Pit ouverte tous les (Tours)";
@@ -810,13 +828,14 @@
             window.isFCY = data.isFCY || false; window.isRedFlag = data.isRedFlag || false; window.weatherMode = data.weatherMode || "sec";
             window.selectedCircuit = data.selectedCircuit || "SPA";
 
-            // Restauration des inputs de configuration réglementaire à l'écran
+           // Restauration des inputs de configuration réglementaire à l'écran
             if (data.selectedCircuit === "CUSTOM" && data.circuitsDatabase?.CUSTOM) {
                 window.circuitsDatabase["CUSTOM"] = data.circuitsDatabase.CUSTOM;
                 document.getElementById("reg-mode").value = data.circuitsDatabase.CUSTOM.mode;
                 document.getElementById("reg-limit-value").value = data.circuitsDatabase.CUSTOM.limitValue;
                 document.getElementById("reg-ref-sec").value = data.circuitsDatabase.CUSTOM.refSec;
                 document.getElementById("reg-ref-pluie").value = data.circuitsDatabase.CUSTOM.refPluie;
+                document.getElementById("reg-default-conso").value = data.circuitsDatabase.CUSTOM.defaultConso;
             }
 
             for(let i=1; i<=6; i++) {
