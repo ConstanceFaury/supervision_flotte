@@ -72,6 +72,7 @@
         .progress-bar { background: var(--state-green); height: 100%; width: 100%; transition: width 0.4s; }
         .pit-options-box { display: none; background-color: #050507; padding: 10px; border-radius: 6px; font-size: 11px; flex-direction: column; gap: 8px; border: 1px solid var(--4race-card-border); }
         .pit-options-box label { display: flex; align-items: center; gap: 8px; cursor: pointer; color: #aaa; }
+        .pit-options-box label input[type="number"] { background: #111; color: #fff; border: 1px solid #333; padding: 2px 5px; border-radius: 4px; }
         .pit-timer-block { display: none; text-align: center; font-size: 24px; font-weight: bold; color: var(--state-alert); background: rgba(239, 68, 68, 0.1); padding: 6px; border-radius: 6px; }
         .action-zone { display: flex; flex-direction: column; gap: 8px; margin-top: auto; }
         .btn-quick { padding: 10px; font-size: 12px; font-weight: 700; text-transform: uppercase; border-radius: 6px; border: none; cursor: pointer; text-align: center; }
@@ -195,11 +196,13 @@
                     <option value="2">2 Voitures</option>
                     <option value="3">3 Voitures</option>
                     <option value="4" selected>4 Voitures</option>
+                    <option value="5">5 Voitures</option>
+                    <option value="6">6 Voitures</option>
                 </select>
             </div>
             <div class="card" style="border: 2px solid var(--4race-coral);">
                 <div class="card-title">🗺️ CIRCUIT DE LA COURSE</div>
-                <select id="setup-circuit" onchange="window.dbAppliquerCircuit(this.value)" style="font-weight: bold;">
+                <select id="setup-circuit" style="font-weight: bold;">
                     <option value="SPA" selected>Spa-Francorchamps (25h)</option>
                     <option value="Castellet">Castellet (8h)</option>
                     <option value="Dijon">Dijon-Prenois</option>
@@ -288,6 +291,10 @@
                 <div class="form-group"><label>Relais Actuel</label><select id="drawer-rot-r1" onchange="saveDrawerConfig()"></select></div>
                 <div class="form-group"><label>Relais N+1</label><select id="drawer-rot-r2" onchange="saveDrawerConfig()"></select></div>
             </div>
+            <div class="form-row">
+                <div class="form-group"><label>Relais N+2</label><select id="drawer-rot-r3" onchange="saveDrawerConfig()"></select></div>
+                <div class="form-group"><label>Relais N+3</label><select id="drawer-rot-r4" onchange="saveDrawerConfig()"></select></div>
+            </div>
         </div>
         <div>
             <h4 style="font-size:12px; color:#fff; margin-bottom:12px; text-transform:uppercase; font-style:italic;">🔮 Planificateur Énergie/Temps (Double Verrou)</h4>
@@ -308,11 +315,6 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        window.circuitsDatabase = {
-            "SPA": { "name": "SPA (25h)", "maxFuel": 42, "refSecSec": 185.0, "refSecPluie": 205.0, "conso": [{sec:1.77}] },
-            "Castellet": { "name": "Castellet", "maxFuel": 42, "refSecSec": 152.0, "refSecPluie": 169.0, "conso": [{sec:1.38}] }
-        };
-
         window.currentCarCount = 4;
         window.activeCarIdInDrawer = null;
         window.isFCY = false;
@@ -320,17 +322,19 @@
         window.weatherMode = "sec";
         window.enemyDatabase = [];
 
-        window.carIdMapping = { v1: "531", v2: "183", v3: "156", v4: "40" };
-        window.teamNameMapping = { v1: "Team 1", v2: "Team 2", v3: "Team 3", v4: "Team 4" };
+        window.carIdMapping = { v1: "531", v2: "183", v3: "156", v4: "40", v5: "533", v6: "88" };
+        window.teamNameMapping = { v1: "Team 1", v2: "Team 2", v3: "Team 3", v4: "Team 4", v5: "Team 5", v6: "Team 6" };
         window.pilotsDatabase = {
             v1: { 1: "Sylvain", 2: "Laurent", 3: "Clément", 4: "Julien" },
             v2: { 1: "Laurent", 2: "Cyprien", 3: "Benoît/ Jonathan", 4: "Jean-Charles" },
             v3: { 1: "Julien", 2: "Germain", 3: "Antoine", 4: "Emmanuel" },
-            v4: { 1: "Quentin", 2: "Elea", 3: "Patrice", 4: "Vincent" }
+            v4: { 1: "Quentin", 2: "Elea", 3: "Patrice", 4: "Vincent" },
+            v5: { 1: "Pilote A", 2: "Pilote B", 3: "Pilote C", 4: "Pilote D" },
+            v6: { 1: "Pilote E", 2: "Pilote F", 3: "Pilote G", 4: "Pilote H" }
         };
 
         window.fleetState = {};
-        for(let i=1; i<=4; i++) {
+        for(let i=1; i<=6; i++) {
             window.fleetState["v"+i] = {
                 fuel: 42.0, currentLap: 0, isInsidePit: false, pitSeconds: 0, pitStartTime: null,
                 rotation: ["1", "2", "3", "4"], hasAlerted: false, history: [],
@@ -344,7 +348,7 @@
             const containerCrews = document.getElementById("setup-crew-inputs-zone");
             let cardsHtml = ""; let chassisHtml = ""; let crewsHtml = "";
 
-            for(let i=1; i<=4; i++) {
+            for(let i=1; i<=6; i++) {
                 let id = "v" + i;
                 cardsHtml += `
                     <div id="card-${id}" class="car-card">
@@ -502,9 +506,6 @@
                 const totalSecondsLeft = lapsLeft * currentRefSec * fcyMultiplier;
                 const minutesLeft = Math.floor(totalSecondsLeft / 60);
 
-                const stintTimeWidget = document.getElementById(`stint-time-${id}`);
-                if (stintTimeWidget) stintTimeWidget.innerText = localCar.isInsidePit ? "🛒 Stand" : `~ ${minutesLeft} min`;
-
                 const card = document.getElementById(`card-${id}`); const badge = document.getElementById(`badge-${id}`);
                 card.className = "car-card";
                 
@@ -524,11 +525,12 @@
 
         buildHTMLElementsStructure();
 
-      onValue(ref(db, 'strategie_flotte'), (snapshot) => {
+        // --- ÉCOUTE PERMANENTE CLOUD FIREBASE ---
+        onValue(ref(db, 'strategie_flotte'), (snapshot) => {
             const data = snapshot.val(); if(!data) return;
             window.isFCY = data.isFCY || false; window.isRedFlag = data.isRedFlag || false; window.weatherMode = data.weatherMode || "sec";
 
-            for(let i=1; i<=4; i++) {
+            for(let i=1; i<=6; i++) {
                 let id = "v" + i; if(!data.cars || !data.cars[id]) continue;
                 const cloudCar = data.cars[id]; const localCar = window.fleetState[id];
 
@@ -537,6 +539,13 @@
                 localCar.rotation = cloudCar.rotation || localCar.rotation;
                 localCar.isInsidePit = cloudCar.isInsidePit || false;
                 localCar.pitStartTime = cloudCar.pitStartTime || null;
+
+                // Restauration de la lecture des consommations individuelles par pilote
+                if (cloudCar.conso) {
+                    for(let p=1; p<=4; p++) {
+                        if (cloudCar.conso[p]) localCar.conso[p].sec = parseFloat(cloudCar.conso[p].sec) || 1.77;
+                    }
+                }
 
                 for (let p = 1; p <= 4; p++) {
                     const inputPilote = document.getElementById(`s_${id}_${p}`);
@@ -571,7 +580,6 @@
             }
         });
 
-        // --- GESTIONNAIRE DE CHRONO DE STAND (PIT TIMER) ---
         window.startLocalPitTimer = function(id) {
             const car = window.fleetState[id]; clearInterval(car.interval);
             const limit = parseInt(document.getElementById("setup-pitSec")?.value) || 180;
@@ -597,7 +605,6 @@
             return `${Math.floor(s/60).toString().padStart(2,'0')}:${Math.floor(s%60).toString().padStart(2,'0')}.${Math.floor((s%1)*10)}`; 
         };
 
-        // --- EXPORTATIONS EXCEL & RESET ---
         window.exportRaceToExcel = function() {
             const logs = window.allRaceLogs || [];
             if (logs.length === 0) { alert("Aucun tour enregistré dans les logs."); return; }
@@ -619,7 +626,6 @@
             }
         };
 
-        // --- ACCÈS ET SÉCURITÉ (REMIS À PLAT COMME AVANT) ---
         window.isMuretReadOnly = true; 
         
         window.setReadOnlyMode = function(st) {
@@ -652,7 +658,7 @@
 
         window.changerNombreVoitures = function(val) {
             const nb = parseInt(val) || 4; window.currentCarCount = nb;
-            for(let i=1; i<=4; i++) {
+            for(let i=1; i<=6; i++) {
                 let id = "v" + i;
                 if(document.getElementById(`card-${id}`)) document.getElementById(`card-${id}`).style.display = i<=nb?"flex":"none";
                 if(document.getElementById(`block-setup-${id}`)) document.getElementById(`block-setup-${id}`).style.display = i<=nb?"grid":"none";
@@ -673,10 +679,12 @@
             window.dbPushFullRaceState();
         };
 
-        // --- GESTION DU DRAWER PANNEAU STRATÉGIE ---
+        // --- GESTION DU DRAWER PANNEAU STRATÉGIE (RESTREINTE AUX SÉLECTIONS INDIVIDUELLES) ---
         window.openDrawer = function(id) {
             window.activeCarIdInDrawer = id; const car = window.fleetState[id];
             document.getElementById("drawer-car-title").innerText = `Stratégie Voiture #${window.carIdMapping[id]}`;
+            
+            // Restauration de l'affectation des consommations individuelles par pilote dans les cases du Drawer
             document.getElementById("drawer-c-p1").value = car.conso[1]?.sec || 1.77;
             document.getElementById("drawer-c-p2").value = car.conso[2]?.sec || 1.77;
             document.getElementById("drawer-c-p3").value = car.conso[3]?.sec || 1.77;
@@ -686,30 +694,42 @@
                 let pN = document.getElementById(`s_${id}_${p}`)?.value || `Pilote ${p}`;
                 document.getElementById(`lbl-drawer-p${p}`).innerText = pN;
             }
+            
             let fSel = document.getElementById("drawer-flash-pilot");
             fSel.innerHTML = `<option value="1">${document.getElementById(`s_${id}_1`)?.value || 'P1'}</option><option value="2">${document.getElementById(`s_${id}_2`)?.value || 'P2'}</option><option value="3">${document.getElementById(`s_${id}_3`)?.value || 'P3'}</option><option value="4">${document.getElementById(`s_${id}_4`)?.value || 'P4'}</option>`;
 
             for(let r=1; r<=4; r++) {
                 let sRot = document.getElementById(`drawer-rot-r${r}`);
                 let sVal = car.rotation[r-1] || String(r);
-                sRot.innerHTML = `<option value="1" ${sVal==='1'?'selected':''}>1</option><option value="2" ${sVal==='2'?'selected':''}>2</option><option value="3" ${sVal==='3'?'selected':''}>3</option><option value="4" ${sVal==='4'?'selected':''}>4</option>`;
+                sRot.innerHTML = `
+                    <option value="1" ${sVal==='1'?'selected':''}>1</option>
+                    <option value="2" ${sVal==='2'?'selected':''}>2</option>
+                    <option value="3" ${sVal==='3'?'selected':''}>3</option>
+                    <option value="4" ${sVal==='4'?'selected':''}>4</option>
+                `;
             }
             window.refreshDrawerPlanifier(id);
             document.getElementById("car-drawer").classList.add("open");
         };
 
-        function saveDrawerConfig() {
+        window.saveDrawerConfig = function() {
             const id = window.activeCarIdInDrawer; if(!id) return;
             const car = window.fleetState[id];
+            
+            // Sauvegarde ciblée des consommations individuelles
             car.conso[1].sec = parseFloat(document.getElementById("drawer-c-p1").value) || 1.77;
             car.conso[2].sec = parseFloat(document.getElementById("drawer-c-p2").value) || 1.77;
             car.conso[3].sec = parseFloat(document.getElementById("drawer-c-p3").value) || 1.77;
             car.conso[4].sec = parseFloat(document.getElementById("drawer-c-p4").value) || 1.77;
 
             car.rotation[0] = document.getElementById("drawer-rot-r1").value;
+            car.rotation[1] = document.getElementById("drawer-rot-r2").value;
+            car.rotation[2] = document.getElementById("drawer-rot-r3").value;
+            car.rotation[3] = document.getElementById("drawer-rot-r4").value;
+
             window.refreshDrawerPlanifier(id);
             window.dbPushFullRaceState();
-        }
+        };
 
         // --- MATHÉMATIQUES DU PLANIFICATEUR (DOUBLE VERROU TEMPS VS ESSENCE) ---
         window.refreshDrawerPlanifier = function(id) {
@@ -752,7 +772,7 @@
             if(!id || !window.lastCalculatedFlashConsoLocal) return;
             window.fleetState[id].conso[pIdx].sec = parseFloat(window.lastCalculatedFlashConsoLocal.toFixed(2));
             document.getElementById(`drawer-c-p${pIdx}`).value = window.fleetState[id].conso[pIdx].sec;
-            saveDrawerConfig(); alert("Consommation injectée !");
+            window.saveDrawerConfig(); alert("Consommation injectée !");
             document.getElementById("btn-apply-flash-drawer").disabled = true;
         };
 
