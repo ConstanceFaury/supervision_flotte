@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>4-RACE Cockpit V2 Pro - Supervision Flotte</title>
+    <style>
+        :root {
+            --4race-coral: #FF4719;
+            --4race-coral-hover: #e0360b;
+            --4race-bg: #050507;
+            --4race-card: #0f0f13;
+            --4race-card-border: #1e1e26;
+            --4race-sidebar: #0a0a0d;
+            --4race-text: #f1f5f9;
+            --4race-text-muted: #64748b;
+            --state-green: #22C55E;
+            --state-fcy: #EAB308;
+            --state-alert: #EF4444;
+            --state-pit: #3b82f6;
+        }
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Montserrat:ital,wght@0,400;0,600;0,700;1,400;1,700&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Montserrat', sans-serif; }
+        body { background-color: var(--4race-bg); color: var(--4race-text); display: flex; height: 100vh; overflow: hidden; }
+        .monospace { font-family: 'JetBrains Mono', monospace; }
+        aside { width: 260px; min-width: 260px; background-color: var(--4race-sidebar); border-right: 1px solid var(--4race-card-border); display: flex; flex-direction: column; justify-content: space-between; padding: 20px; z-index: 100; transition: margin-left 0.3s ease; }
+        aside.collapsed { margin-left: -260px; }
+        .logo-area { padding-bottom: 25px; border-bottom: 1px solid var(--4race-card-border); }
+        .logo-area h1 { font-size: 20px; text-transform: uppercase; font-style: italic; font-weight: 700; }
+        .logo-area h1 span { color: var(--4race-coral); }
+        .logo-sub { font-size: 10px; color: var(--4race-text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; display: block; }
+        .nav-links { display: flex; flex-direction: column; gap: 8px; margin-top: 25px; flex-grow: 1; }
+        .nav-btn { background: none; border: none; color: var(--4race-text-muted); padding: 12px 16px; font-size: 13px; font-weight: 600; text-transform: uppercase; cursor: pointer; border-radius: 8px; text-align: left; display: flex; align-items: center; gap: 12px; transition: all 0.2s ease; }
+        .nav-btn:hover { color: var(--4race-text); background-color: rgba(255,255,255,0.03); }
+        .nav-btn.active { color: #000; background-color: var(--4race-text); }
+        .main-container { flex-grow: 1; display: flex; flex-direction: column; height: 100vh; overflow: hidden; position: relative; }
+        header { background-color: var(--4race-sidebar); border-bottom: 1px solid var(--4race-card-border); padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; }
+        .race-control-center { display: flex; gap: 12px; align-items: center; }
+        .ctrl-btn { padding: 8px 16px; border-radius: 6px; font-weight: 700; text-transform: uppercase; font-size: 12px; cursor: pointer; border: 1px solid transparent; transition: all 0.2s; }
+        .btn-track { background-color: rgba(34, 197, 94, 0.15); color: var(--state-green); border-color: rgba(34, 197, 94, 0.3); }
+        .btn-track.fcy { background-color: var(--state-fcy); color: #000; }
+        .btn-redflag { background-color: #222; color: var(--state-alert); border-color: #333; }
+        .btn-redflag.active { background-color: var(--state-alert); color: #fff; animation: blink 1s infinite; }
+        .toggle-sidebar-btn { background: none; border: 1px solid var(--4race-card-border); color: var(--4race-text-muted); padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 16px; margin-right: 5px; }
+        .weather-select { background-color: #1a1a24; color: #fff; border: 1px solid var(--4race-card-border); padding: 8px 12px; border-radius: 6px; font-weight: bold; font-size: 12px; cursor: pointer; outline: none; }
+        .reset-btn { background: none; border: 1px solid #2d2d3d; color: var(--4race-text-muted); padding: 8px 14px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; text-transform: uppercase; }
+        .reset-btn:hover { background-color: var(--state-alert); color: white; border-color: var(--state-alert); }
+        .page-content { padding: 25px; flex-grow: 1; overflow-y: auto; display: none; }
+        .page-content.active { display: block; }
+        .fleet-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 20px; margin-bottom: 25px; }
+        .car-card { background-color: var(--4race-card); border: 1px solid var(--4race-card-border); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 14px; position: relative; overflow: hidden; }
+        .car-card.state-pit { border-left: 4px solid var(--state-pit); background-color: #0b0f19; }
+        .car-card.state-fcy { border-left: 4px solid var(--state-fcy); background-color: #14120a; }
+        .car-card.state-alert { border-color: var(--state-alert); animation: flash-card 1.5s infinite; }
+        .car-card.state-red-flag { border: 2px solid var(--state-alert) !important; animation: flash-red 1s infinite !important; }
+        .car-header { display: flex; justify-content: space-between; align-items: center; }
+        .car-num { font-size: 28px; font-weight: 700; color: #fff; font-style: italic; background: none; border: none; cursor: pointer; text-decoration: underline dashed rgba(255,255,255,0.2); }
+        .car-num:hover { color: var(--4race-coral); }
+        .status-badge { padding: 4px 10px; border-radius: 6px; font-size: 10px; font-weight: 700; text-transform: uppercase; background: rgba(255,255,255,0.05); color: var(--4race-text-muted); }
+        .badge-piste { background-color: rgba(34, 197, 94, 0.1); color: var(--state-green); }
+        .badge-fcy { background-color: rgba(234, 179, 8, 0.1); color: var(--state-fcy); }
+        .badge-stand { background-color: rgba(59, 130, 246, 0.1); color: var(--state-pit); }
+        .badge-alert { background-color: var(--state-alert); color: #fff; }
+        .stats-row { display: flex; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; justify-content: space-between; border: 1px solid #16161f; }
+        .stat-item text { display: block; font-size: 9px; color: var(--4race-text-muted); text-transform: uppercase; font-weight: bold; margin-bottom: 2px; }
+        .stat-item val { font-size: 13px; font-weight: 700; display: block; }
+        .fuel-section { background: #000; padding: 15px; border-radius: 10px; border: 1px solid #16161f; text-align: center; }
+        .fuel-main { font-size: 36px; font-weight: 700; color: var(--state-green); }
+        .fuel-sub { font-size: 11px; color: var(--4race-text-muted); margin-top: 4px; }
+        .fuel-target-time { font-size: 11px; color: var(--4race-coral); font-weight: 700; margin-top: 4px; text-transform: uppercase; }
+        .progress-container { background: #16161f; height: 6px; border-radius: 3px; margin-top: 12px; overflow: hidden; }
+        .progress-bar { background: var(--state-green); height: 100%; width: 100%; transition: width 0.4s; }
+        .pit-options-box { display: none; background-color: #050507; padding: 10px; border-radius: 6px; font-size: 11px; flex-direction: column; gap: 8px; border: 1px solid var(--4race-card-border); }
+        .pit-options-box label { display: flex; align-items: center; gap: 8px; cursor: pointer; color: #aaa; }
+        .pit-timer-block { display: none; text-align: center; font-size: 24px; font-weight: bold; color: var(--state-alert); background: rgba(239, 68, 68, 0.1); padding: 6px; border-radius: 6px; }
+        .action-zone { display: flex; flex-direction: column; gap: 8px; margin-top: auto; }
+        .btn-quick { padding: 10px; font-size: 12px; font-weight: 700; text-transform: uppercase; border-radius: 6px; border: none; cursor: pointer; text-align: center; }
+        .btn-quick-lap { background: #fff; color: #000; }
+        .btn-quick-pit { background: var(--state-alert); color: #fff; }
+        .btn-quick-exit { background: var(--state-green); color: #000; display: none; }
+        .drawer { position: fixed; top: 0; right: -440px; width: 420px; height: 100vh; background-color: var(--4race-sidebar); border-left: 1px solid var(--4race-card-border); box-shadow: -10px 0 30px rgba(0,0,0,0.6); z-index: 500; padding: 25px; display: flex; flex-direction: column; gap: 20px; transition: right 0.3s ease; overflow-y: auto; }
+        .drawer.open { right: 0; }
+        .drawer-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--4race-card-border); padding-bottom: 15px; }
+        .drawer-close { background: none; border: none; color: var(--4race-text-muted); font-size: 20px; cursor: pointer; }
+        .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+        .form-group label { font-size: 10px; text-transform: uppercase; color: var(--4race-text-muted); font-weight: 700; }
+        .form-group input, .form-group select { background: #16161f; border: 1px solid var(--4race-card-border); color: #fff; padding: 10px; border-radius: 6px; font-size: 13px; width: 100%; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .card { background-color: var(--4race-card); border: 1px solid var(--4race-card-border); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+        .card-title { font-size: 13px; text-transform: uppercase; font-weight: 700; margin-bottom: 15px; font-style: italic; color: var(--4race-coral); }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th, td { padding: 10px; border-bottom: 1px solid var(--4race-card-border); font-size: 13px; }
+        th { color: var(--4race-text-muted); text-transform: uppercase; font-size: 10px; font-weight: 700; }
+        #rc-banner { background: var(--state-fcy); color: #000; padding: 10px 25px; font-weight: 700; font-size: 12px; display: flex; justify-content: space-between; align-items: center; }
+        .log-section { margin-top: auto; border-top: 1px solid var(--4race-card-border); background: #09090c; max-height: 180px; overflow-y: auto; }
+        .popup-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 9999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(8px); }
+        .popup-box { background: var(--4race-card); border: 2px solid var(--4race-coral); padding: 40px; border-radius: 12px; text-align: center; width: 90%; max-width: 450px; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        @keyframes flash-card { 0%, 100% { box-shadow: 0 0 4px rgba(239,68,68,0); } 50% { box-shadow: 0 0 15px rgba(239,68,68,0.4); background-color: #170707; } }
+        @keyframes flash-red { 0%, 100% { border-color: var(--state-alert); box-shadow: 0 0 12px rgba(239,68,68,0.6); } 50% { border-color: #1a1a1a; box-shadow: none; } }
+    </style>
+</head>
+<body>
+
+    <div id="raceAlertPopup" class="popup-overlay" style="display: none;">
+        <div id="raceAlertContent" class="popup-box">
+            <h2 id="racePopupTitle" style="font-style: italic; margin-bottom: 15px; font-size: 26px;">⚠️ ALERTE ESSENCE</h2>
+            <p id="racePopupText" style="font-size: 15px; margin-bottom: 25px; line-height: 1.5; color: #fff;">-</p>
+            <button class="ctrl-btn" style="background: var(--4race-coral); color: white; padding: 12px 25px;" onclick="document.getElementById('raceAlertPopup').style.display = 'none'">Prendre note & Fermer</button>
+        </div>
+    </div>
+
+    <div id="login-popup" class="popup-overlay">
+        <div class="popup-box">
+            <h2 style="font-style: italic; margin-bottom: 20px;">🔒 COCKPIT MURET STRATÉGIE</h2>
+            <div class="form-group">
+                <input type="password" id="access-code" placeholder="CODE ACCÈS MURET" style="text-align: center; font-weight: bold;">
+            </div>
+            <button class="ctrl-btn" style="background: var(--4race-coral); color: white; width: 100%; padding: 12px; margin-top: 10px;" onclick="checkAccess()">VALIDER</button>
+        </div>
+    </div>
+
+    <aside id="app-sidebar">
+        <div>
+            <div class="logo-area">
+                <h1><span>4</span>-RACE</h1>
+                <span class="logo-sub">Stratégie Flotte & Essence</span>
+            </div>
+            <nav class="nav-links">
+                <button id="btn-nav-fleet" class="nav-btn active" onclick="switchPage('page-fleet', 'btn-nav-fleet')">📋 Supervision Flotte</button>
+                <button id="btn-nav-intel" class="nav-btn" onclick="switchPage('page-intel', 'btn-nav-intel')">🕵️ Intel Adversaires</button>
+                <button id="btn-nav-setup" class="nav-btn" onclick="switchPage('page-setup', 'btn-nav-setup')">⚙️ Setup Équipe</button>
+            </nav>
+        </div>
+    </aside>
+
+    <div class="main-container">
+        <header id="app-header">
+            <div class="race-control-center">
+                <button class="toggle-sidebar-btn" onclick="document.getElementById('app-sidebar').classList.toggle('collapsed')">☰</button>
+                <div id="trackState" class="ctrl-btn btn-track" onclick="dbToggleTrackState()">🟢 Piste Dégagée</div>
+                <button id="redFlagState" class="ctrl-btn btn-redflag" onclick="dbToggleRedFlag()">🔴 DRAPEAU ROUGE</button>
+                <select id="weatherStateSelect" class="weather-select" onchange="dbChangeWeatherState(this.value)">
+                    <option value="sec" selected>☀️ SEC</option>
+                    <option value="pluie_moderee">🌧️ PLUIE MODÉRÉE (-25%)</option>
+                    <option value="forte_pluie">⛈️ FORTE PLUIE (-60%)</option>
+                </select>
+            </div>
+            <div>
+                <button class="reset-btn" onclick="dbResetEntireRace()">🔄 Reset Course</button>
+                <button class="reset-btn" style="background-color: #22C55E; color: white; border-color: #22C55E;" onclick="exportRaceToExcel()">📊 Exporter Excel</button>
+            </div>
+        </header>
+
+        <div id="rc-banner">
+            <span id="rc-text-content">📢 En attente du Python Conso Flotte...</span>
+            <span id="rc-time-badge" class="monospace">--:--:--</span>
+        </div>
+
+        <div id="page-fleet" class="page-content active">
+            <div class="fleet-grid" id="fleet-cards-container"></div>
+        </div>
+
+        <div id="page-intel" class="page-content">
+            <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 20px;">
+                <div class="card">
+                    <div class="card-title">🕵️ Enregistrer un Arrêt Concurrent</div>
+                    <div class="form-row">
+                        <div class="form-group"><label>N° Voiture adverse</label><input type="number" id="intelCarNum" value="426"></div>
+                        <div class="form-group"><label>Tours dans leur relais</label><input type="number" id="intelCarLaps" value="21" min="1"></div>
+                    </div>
+                    <button class="ctrl-btn" style="background: var(--4race-coral); color:white; width:100%; padding:12px; margin-top:10px;" onclick="calculateEnemyIntel()">📊 Analyser</button>
+                    <div style="background:#000; padding:15px; border-radius:8px; border:1px solid var(--4race-card-border); margin-top:20px; text-align:center;">
+                        <span style="font-size:10px; color:var(--4race-text-muted); text-transform:uppercase; font-weight:bold;">Moyenne Générale Ennemis</span>
+                        <div id="globalMeanValue" class="monospace" style="font-size:28px; color:var(--4race-coral); font-weight:bold; margin-top:5px;">0.00 L</div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Analyse Comparative</div>
+                    <table>
+                        <thead>
+                            <tr><th>Voiture</th><th>Type</th><th>Tours max</th><th>Consommation</th><th>Action</th></tr>
+                        </thead>
+                        <tbody id="intelTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="page-setup" class="page-content">
+            <div class="card" style="border: 1px solid #EAB308;">
+                <div class="card-title" style="color:#EAB308;">🏎️ VOITURES ENGAGÉES :</div>
+                <select id="setup-car-count" onchange="window.changerNombreVoitures(this.value)" style="background: #111; color: #fff; padding: 10px; border-radius: 6px; font-weight: bold;">
+                    <option value="1">1 Voiture</option>
+                    <option value="2">2 Voitures</option>
+                    <option value="3">3 Voitures</option>
+                    <option value="4" selected>4 Voitures</option>
+                </select>
+            </div>
+            <div class="card" style="border: 2px solid var(--4race-coral);">
+                <div class="card-title">🗺️ CIRCUIT DE LA COURSE</div>
+                <select id="setup-circuit" onchange="window.dbAppliquerCircuit(this.value)" style="font-weight: bold;">
+                    <option value="SPA" selected>Spa-Francorchamps (25h)</option>
+                    <option value="Castellet">Castellet (8h)</option>
+                    <option value="Dijon">Dijon-Prenois</option>
+                    <option value="Nogaro">Nogaro (8h)</option>
+                    <option value="Magny-cours">Magny cours (8h)</option>
+                </select>
+            </div>
+            <div class="card">
+                <div class="card-title">👤 Équipages (4 Pilotes par Voiture)</div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px;" id="setup-crew-inputs-zone"></div>
+            </div>
+            <div class="card">
+                <div class="card-title">⚙️ Paramètres Communs</div>
+                <div style="display: flex; flex-direction: column; gap: 15px;" id="setup-chassis-inputs-zone"></div>
+                <div class="form-row" style="margin-top:15px;">
+                    <div class="form-group"><label>Capacité Max utile (L)</label><input type="number" id="setup-maxFuel" value="42" step="0.5" onchange="dbPushFullRaceState()"></div>
+                    <div class="form-group"><label>Temps d'arrêt obligatoire (sec)</label><input type="number" id="setup-pitSec" value="180" onchange="dbPushFullRaceState()"></div>
+                    <div class="form-group">
+                        <label>⚠️ Alerte Essence à :</label>
+                        <select id="setup-alertLimit" onchange="dbPushFullRaceState()">
+                            <option value="2">2 tours restants</option>
+                            <option value="3" selected>3 tours restants</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="log-section">
+            <table>
+                <thead>
+                    <tr><th>Heure</th><th>Voiture</th><th>Action</th><th>Carburant</th><th>Piste</th></tr>
+                </thead>
+                <tbody id="fleetLogBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="car-drawer" class="drawer">
+        <div class="drawer-header">
+            <h2 id="drawer-car-title" style="font-style: italic;">Configuration Stratégie</h2>
+            <button class="drawer-close" onclick="document.getElementById('car-drawer').classList.remove('open')">✕</button>
+        </div>
+        <div style="border-bottom: 1px solid var(--4race-card-border); padding-bottom: 15px;">
+            <h4 style="font-size:12px; color:var(--4race-coral); margin-bottom:12px; text-transform:uppercase;">📊 Fiche Consos Étalon (Données SEC)</h4>
+            <div class="form-row">
+                <div class="form-group"><label id="lbl-drawer-p1">Pilote 1</label><input type="number" id="drawer-c-p1" step="0.01" onchange="saveDrawerConfig()"></div>
+                <div class="form-group"><label id="lbl-drawer-p2">Pilote 2</label><input type="number" id="drawer-c-p2" step="0.01" onchange="saveDrawerConfig()"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label id="lbl-drawer-p3">Pilote 3</label><input type="number" id="drawer-c-p3" step="0.01" onchange="saveDrawerConfig()"></div>
+                <div class="form-group"><label id="lbl-drawer-p4">Pilote 4</label><input type="number" id="drawer-c-p4" step="0.01" onchange="saveDrawerConfig()"></div>
+            </div>
+        </div>
+        <div style="border-bottom: 1px solid var(--4race-card-border); padding-bottom: 15px; background: rgba(0,0,0,0.15); padding: 12px; border-radius: 8px;">
+            <div style="color: #00bc8c; font-weight: bold; font-size: 12px; display: flex; justify-content: space-between; margin-bottom: 12px;">
+                <span>🧮 DEBRIEF FLASH CONSO</span>
+                <span id="drawer-flash-result" style="color: #f39c12; font-family: monospace;">--.- L/tr</span>
+            </div>
+            <div class="form-group">
+                <label>Pilote concerné</label>
+                <select id="drawer-flash-pilot"></select>
+            </div>
+            <div class="form-group">
+                <label>Essence brûlée (L)</label>
+                <input type="number" id="drawer-flash-fuel" step="0.01" placeholder="ex: 34.50">
+            </div>
+            <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:12px 16px; text-align:center;">
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                    <label style="font-size:9px; color:#22C55E; font-weight:bold;">SEC</label>
+                    <input type="number" id="drawer-flash-sec" value="0">
+                </div>
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                    <label style="font-size:9px; color:#3498db; font-weight:bold;">PLUIE</label>
+                    <input type="number" id="drawer-flash-pluie" value="0">
+                </div>
+            </div>
+            <div class="form-row" style="margin-top:15px;">
+                <button class="ctrl-btn" style="background:#e67e22; color:white;" onclick="executerCalculFlashDrawer()">🧮 Calculer</button>
+                <button class="ctrl-btn" id="btn-apply-flash-drawer" style="background:#7f8c8d; color:white;" disabled onclick="injecterFlashDrawer()">📥 Injecter</button>
+            </div>
+        </div>
+        <div style="border-bottom: 1px solid var(--4race-card-border); padding-bottom: 15px;">
+            <h4 style="font-size:12px; color:var(--state-fcy); margin-bottom:12px; text-transform:uppercase;">📋 Rotation Prochains Relais</h4>
+            <div class="form-row">
+                <div class="form-group"><label>Relais Actuel</label><select id="drawer-rot-r1" onchange="saveDrawerConfig()"></select></div>
+                <div class="form-group"><label>Relais N+1</label><select id="drawer-rot-r2" onchange="saveDrawerConfig()"></select></div>
+            </div>
+        </div>
+        <div>
+            <h4 style="font-size:12px; color:#fff; margin-bottom:12px; text-transform:uppercase; font-style:italic;">🔮 Planificateur Énergie/Temps (Double Verrou)</h4>
+            <table style="font-size:11px;">
+                <thead>
+                    <tr><th>Relais</th><th>Pilote</th><th>Autonomie Maximale Sécurisée</th></tr>
+                </thead>
+                <tbody id="drawer-plan-body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, set, onValue, update, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        const firebaseConfig = { databaseURL: "https://dashfuncup-4-race-default-rtdb.europe-west1.firebasedatabase.app/" };
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        window.circuitsDatabase = {
+            "SPA": { "name": "SPA (25h)", "maxFuel": 42, "refSecSec": 185.0, "refSecPluie": 205.0, "conso": [{sec:1.77}] },
+            "Castellet": { "name": "Castellet", "maxFuel": 42, "refSecSec": 152.0, "refSecPluie": 169.0, "conso": [{sec:1.38}] }
+        };
+
+        window.currentCarCount = 4;
+        window.activeCarIdInDrawer = null;
+        window.isFCY = false;
+        window.isRedFlag = false;
+        window.weatherMode = "sec";
+        window.enemyDatabase = [];
+
+        window.carIdMapping = { v1: "531", v2: "183", v3: "156", v4: "40" };
+        window.teamNameMapping = { v1: "Team 1", v2: "Team 2", v3: "Team 3", v4: "Team 4" };
+        window.pilotsDatabase = {
+            v1: { 1: "Sylvain", 2: "Laurent", 3: "Clément", 4: "Julien" },
+            v2: { 1: "Laurent", 2: "Cyprien", 3: "Benoît/ Jonathan", 4: "Jean-Charles" },
+            v3: { 1: "Julien", 2: "Germain", 3: "Antoine", 4: "Emmanuel" },
+            v4: { 1: "Quentin", 2: "Elea", 3: "Patrice", 4: "Vincent" }
+        };
+
+        window.fleetState = {};
+        for(let i=1; i<=4; i++) {
+            window.fleetState["v"+i] = {
+                fuel: 42.0, currentLap: 0, isInsidePit: false, pitSeconds: 0, pitStartTime: null,
+                rotation: ["1", "2", "3", "4"], hasAlerted: false, history: [],
+                conso: { 1: {sec:1.77}, 2: {sec:1.77}, 3: {sec:1.77}, 4: {sec:1.77} }
+            };
+        }
+
+        function buildHTMLElementsStructure() {
+            const containerCards = document.getElementById("fleet-cards-container");
+            const containerChassis = document.getElementById("setup-chassis-inputs-zone");
+            const containerCrews = document.getElementById("setup-crew-inputs-zone");
+            let cardsHtml = ""; let chassisHtml = ""; let crewsHtml = "";
+
+            for(let i=1; i<=4; i++) {
+                let id = "v" + i;
+                cardsHtml += `
+                    <div id="card-${id}" class="car-card">
+                        <div class="car-header">
+                            <div>
+                               <button class="car-num lbl-${id}" onclick="window.openDrawer('${id}')">#${window.carIdMapping[id]}</button>
+                                <span id="fleet-team-${id}" style="font-size:12px; color:var(--4race-text-muted); font-weight:600; display:block;">${window.teamNameMapping[id]}</span>
+                            </div>
+                            <span id="badge-${id}" class="status-badge badge-piste">En Piste</span>
+                        </div>
+                        <div class="stats-row">
+                            <div class="stat-item"><text>Pos</text><val id="fleet-pos-${id}">-</val></div>
+                            <div class="stat-item"><text>Dernier Passage</text><val id="fleet-lap-${id}">Tour 0</val></div>
+                        </div>
+                        <div><span style="font-size:9px; color:var(--4race-text-muted); text-transform:uppercase; font-weight:bold;">Pilote</span><div id="fleet-pilot-${id}" style="font-weight:bold;">-</div></div>
+                        <div class="fuel-section">
+                            <div id="fuel-val-${id}" class="fuel-main monospace">42.0L</div>
+                            <div class="fuel-sub">Tours restants : <strong id="laps-${id}">-</strong></div>
+                            <div id="target-time-${id}" class="fuel-target-time monospace">🚨 STOP ESTIMÉ : --:--:--</div>
+                            <div id="predict-box-${id}" style="font-size:11px; color:#3b82f6; font-weight:bold; margin-top:8px;">🎯 Arrêt idéal : Tour -</div>
+                            <div class="progress-container"><div id="bar-${id}" class="progress-bar"></div></div>
+                        </div>
+                        <div id="opt-box-${id}" class="pit-options-box">
+                            <label><input type="radio" name="fuel-mode-${id}" id="rad-full-${id}" checked onclick="document.getElementById('input-litres-${id}').disabled = true; window.dbPushFullRaceState();"> ⛽ Plein Complet (42L)</label>
+                            <label><input type="radio" name="fuel-mode-${id}" id="rad-partial-${id}" onclick="document.getElementById('input-litres-${id}').disabled = false; window.dbPushFullRaceState();"> 📥 Ajouter : <input type="number" id="input-litres-${id}" value="15" disabled style="width:50px; text-align:center;" onchange="window.dbPushFullRaceState()"></label>
+                            <label><input type="radio" name="fuel-mode-${id}" id="rad-none-${id}" onclick="document.getElementById('input-litres-${id}').disabled = true; window.dbPushFullRaceState();"> ❌ Pas de Plein</label>
+                            <label><input type="checkbox" id="chk-pilot-${id}" checked onchange="window.dbPushFullRaceState()"> 👤 Changement Pilote</label>
+                        </div>
+                        <div id="pit-timer-${id}" class="pit-timer-block monospace">00:00.0</div>
+                        <div class="action-zone">
+                            <button id="btn-lap-${id}" class="btn-quick btn-quick-lap" onclick="window.triggerCarLap('${id}')">Forcer Passage Ligne</button>
+                            <button id="btn-pit-${id}" class="btn-quick btn-quick-pit" onclick="window.enterCarPit('${id}')">📥 Entrée Stand</button>
+                            <button id="btn-exit-${id}" class="btn-quick btn-quick-exit" onclick="window.exitCarPit('${id}')">🏎️ Repartie !</button>
+                        </div>
+                    </div>
+                `;
+                chassisHtml += `
+                    <div id="block-setup-${id}" style="display:flex; gap:10px; margin-bottom:8px;">
+                        <div class="form-group" style="flex:1;"><label>Châssis</label><input type="number" id="setup-${id}" value="${window.carIdMapping[id]}" onchange="window.updateChassisNumberFromSetup('${id}', this.value)"></div>
+                        <div class="form-group" style="flex:2;"><label>Nom Team</label><input type="text" id="setup-team-${id}" value="${window.teamNameMapping[id]}" onchange="window.updateTeamNameFromSetup('${id}', this.value)"></div>
+                    </div>
+                `;
+                crewsHtml += `
+                    <div id="crew-${id}" style="background:#000; padding:12px; border-radius:8px; margin-bottom:10px;">
+                        <div style="font-weight:bold; color:var(--4race-coral);" class="lbl-${id}">#${window.carIdMapping[id]}</div>
+                        <div class="form-row">
+                            <div class="form-group"><label>P1</label><input type="text" id="s_${id}_1" value="${window.pilotsDatabase[id][1]}" onchange="window.dbPushFullRaceState()"></div>
+                            <div class="form-group"><label>P2</label><input type="text" id="s_${id}_2" value="${window.pilotsDatabase[id][2]}" onchange="window.dbPushFullRaceState()"></div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group"><label>P3</label><input type="text" id="s_${id}_3" value="${window.pilotsDatabase[id][3]}" onchange="window.dbPushFullRaceState()"></div>
+                            <div class="form-group"><label>P4</label><input type="text" id="s_${id}_4" value="${window.pilotsDatabase[id][4]}" onchange="window.dbPushFullRaceState()"></div>
+                        </div>
+                    </div>
+                `;
+            }
+            containerCards.innerHTML = cardsHtml;
+            containerChassis.innerHTML = chassisHtml;
+            containerCrews.innerHTML = crewsHtml;
+            window.changerNombreVoitures(4);
+        }
+
+        window.dbToggleTrackState = function() {
+            window.isFCY = !window.isFCY;
+            update(ref(db, 'strategie_flotte'), { isFCY: window.isFCY });
+        };
+        window.dbToggleRedFlag = function() {
+            window.isRedFlag = !window.isRedFlag;
+            update(ref(db, 'strategie_flotte'), { isRedFlag: window.isRedFlag });
+        };
+        window.dbChangeWeatherState = function(val) {
+            update(ref(db, 'strategie_flotte'), { weatherMode: val });
+        };
+
+        window.dbPushFullRaceState = function() {
+            try {
+                const payload = { weatherMode: window.weatherMode, isFCY: window.isFCY, isRedFlag: window.isRedFlag, enemyDatabase: window.enemyDatabase, cars: {} };
+                for(let i=1; i<=window.currentCarCount; i++) {
+                    let id = "v" + i; const car = window.fleetState[id];
+                    let modeChoisi = "full";
+                    if (document.getElementById(`rad-none-${id}`)?.checked) modeChoisi = "none";
+                    if (document.getElementById(`rad-partial-${id}`)?.checked) modeChoisi = "partial";
+
+                    payload.cars[id] = {
+                        fuel: car.fuel,
+                        fuelMode: modeChoisi,
+                        addedLitres: parseFloat(document.getElementById(`input-litres-${id}`)?.value) || 0,
+                        changePilotChecked: document.getElementById(`chk-pilot-${id}`)?.checked || false,
+                        currentLap: car.currentLap,
+                        isInsidePit: car.isInsidePit,
+                        pitStartTime: car.pitStartTime || null,
+                        rotation: car.rotation,
+                        conso: car.conso,
+                        carNumInput: document.getElementById(`setup-${id}`)?.value || window.carIdMapping[id],
+                        teamNameInput: document.getElementById(`setup-team-${id}`)?.value || window.teamNameMapping[id] || "",
+                        pilotsInputs: {
+                            1: document.getElementById(`s_${id}_1`)?.value || "",
+                            2: document.getElementById(`s_${id}_2`)?.value || "",
+                            3: document.getElementById(`s_${id}_3`)?.value || "",
+                            4: document.getElementById(`s_${id}_4`)?.value || ""
+                        }
+                    };
+                }
+                set(ref(db, 'strategie_flotte'), payload);
+            } catch(e) { console.error(e); }
+        };
+
+        window.triggerCarLap = function(id) {
+            const car = window.fleetState[id]; if(car.isInsidePit) return;
+            car.currentLap++;
+            let coeff = window.weatherMode === "forte_pluie" ? 0.40 : (window.isFCY ? 0.50 : (window.weatherMode === "pluie_moderee" ? 0.75 : 1.0));
+            let c = (car.conso[car.rotation[0]]?.sec || 1.77) * coeff; if(window.isRedFlag) c = 0;
+            car.fuel = Math.max(0, car.fuel - c);
+            window.dbPushFullRaceState();
+        };
+
+        window.enterCarPit = function(id) {
+            window.fleetState[id].isInsidePit = true;
+            window.fleetState[id].pitStartTime = Date.now();
+            window.dbPushFullRaceState();
+        };
+
+        window.exitCarPit = function(id) {
+            const car = window.fleetState[id]; car.isInsidePit = false; car.pitStartTime = null;
+            window.dbPushFullRaceState();
+        };
+
+        function updateVisualsFromState() {
+            const maxFuel = parseFloat(document.getElementById("setup-maxFuel")?.value) || 42;
+            const alertLimit = parseInt(document.getElementById("setup-alertLimit")?.value) || 3;
+
+            document.getElementById("trackState").innerText = window.isFCY ? "🟨 FCY EN COURS" : "🟢 Piste Dégagée";
+            document.getElementById("trackState").className = window.isFCY ? "ctrl-btn btn-track fcy" : "ctrl-btn btn-track";
+            if(window.isRedFlag) document.getElementById("redFlagState").classList.add("active"); else document.getElementById("redFlagState").classList.remove("active");
+            document.getElementById("weatherStateSelect").value = window.weatherMode;
+
+            for(let i=1; i<=window.currentCarCount; i++) {
+                let id = "v" + i; const localCar = window.fleetState[id];
+                const pilotIdx = localCar.rotation[0];
+                const pName = window.pilotsDatabase[id][pilotIdx] || "-";
+                document.getElementById(`fleet-pilot-${id}`).innerText = pName;
+
+                const essenceActuelle = parseFloat(localCar.fuel) || 0;
+                document.getElementById(`fuel-val-${id}`).innerText = essenceActuelle.toFixed(1) + "L";
+                document.getElementById(`bar-${id}`).style.width = ((essenceActuelle / maxFuel) * 100) + "%";
+                document.getElementById(`fleet-lap-${id}`).innerText = "Tour " + localCar.currentLap;
+
+                let coeff = window.weatherMode === "forte_pluie" ? 0.40 : (window.isFCY ? 0.50 : (window.weatherMode === "pluie_moderee" ? 0.75 : 1.0));
+                let currentConso = (localCar.conso[pilotIdx]?.sec || 1.77) * coeff;
+                const lapsLeft = currentConso > 0 ? Math.floor(localCar.fuel / currentConso) : 0;
+                document.getElementById(`laps-${id}`).innerText = lapsLeft;
+
+                // --- LOGIQUE DU DOUBLE VERROU (TEMPS VS CARBURANT) ---
+                const currentRefSec = window.weatherMode === "sec" ? (window.fleetState.track_ref_sec || 185) : (window.fleetState.track_ref_pluie || 205);
+                const fcyMultiplier = window.isFCY ? 1.4 : 1.0;
+                const totalSecondsLeft = lapsLeft * currentRefSec * fcyMultiplier;
+                const minutesLeft = Math.floor(totalSecondsLeft / 60);
+
+                const stintTimeWidget = document.getElementById(`stint-time-${id}`);
+                if (stintTimeWidget) stintTimeWidget.innerText = localCar.isInsidePit ? "🛒 Stand" : `~ ${minutesLeft} min`;
+
+                const card = document.getElementById(`card-${id}`); const badge = document.getElementById(`badge-${id}`);
+                card.className = "car-card";
+                
+                if(localCar.isInsidePit) {
+                    card.classList.add("state-pit"); badge.innerText = "Au Stand"; badge.className = "status-badge badge-stand";
+                    document.getElementById(`opt-box-${id}`).style.display = "flex";
+                    document.getElementById(`btn-lap-${id}`).style.display = "none"; document.getElementById(`btn-pit-${id}`).style.display = "none"; document.getElementById(`btn-exit-${id}`).style.display = "block";
+                } else {
+                    document.getElementById(`opt-box-${id}`).style.display = "none";
+                    document.getElementById(`btn-lap-${id}`).style.display = "block"; document.getElementById(`btn-pit-${id}`).style.display = "block"; document.getElementById(`btn-exit-${id}`).style.display = "none";
+                    if(lapsLeft <= alertLimit) { card.classList.add("state-alert"); badge.innerText = "ALERTE ESSENCE"; badge.className = "status-badge badge-alert"; }
+                    else if(window.isFCY) { card.classList.add("state-fcy"); badge.innerText = "FCY SLOW"; badge.className = "status-badge badge-fcy"; }
+                    else { badge.innerText = "En Piste"; badge.className = "status-badge badge-piste"; }
+                }
+            }
+        }
+
+        onValue(ref(db, 'strategie_flotte'), (snapshot) => {
+            const data = snapshot.val(); if(!data) return;
+            window.isFCY = data.isFCY || false; window.isRedFlag = data.isRedFlag || false; window.weatherMode = data.weatherMode || "sec";
+
+            for(let i=1; i<=4; i++) {
+                let id = "v" + i; if(!data.cars || !data.cars[id]) continue;
+                const cloudCar = data.cars[id]; const localCar = window.fleetState[id];
+
+                localCar.fuel = parseFloat(cloudCar.fuel);
+                localCar.currentLap = parseInt(cloudCar.currentLap) || 0;
+                localCar.rotation = cloudCar.rotation || localCar.rotation;
+                localCar.isInsidePit = cloudCar.isInsidePit || false;
+
+                // --- SÉCURITÉ DE SAISIE CLAVIER PILOTES ET CHÂSSIS ---
+                for (let p = 1; p <= 4; p++) {
+                    const inputPilote = document.getElementById(`s_${id}_${p}`);
+                    if (inputPilote && document.activeElement !== inputPilote) {
+                        inputPilote.value = cloudCar.pilotsInputs?.[p] || window.pilotsDatabase[id][p] || "";
+                        window.pilotsDatabase[id][p] = inputPilote.value;
+                    }
+                }
+                const setupChassis = document.getElementById(`setup-${id}`);
+                if (setupChassis && document.activeElement !== setupChassis) setupChassis.value = cloudCar.carNumInput || "";
+                
+                const setupTeam = document.getElementById(`setup-team-${id}`);
+                if (setupTeam && document.activeElement !== setupTeam) setupTeam.value = cloudCar.teamNameInput || "";
+            }
+            updateVisualsFromState();
+        });
+
+        buildHTMLElementsStructure();
+    </script>
+</body>
+</html>
