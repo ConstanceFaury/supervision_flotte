@@ -214,8 +214,7 @@
                     </select>
                 </div>
                 
-                <!-- Cette zone est désormais toujours affichée pour te laisser libre de TOUT modifier -->
-               <!-- Zone de configuration avancée toujours affichée -->
+                <!-- Zone de configuration avancée avec TOUTES les cases -->
                 <div id="custom-reg-zone" style="border-top:1px solid #222; margin-top:15px; padding-top:15px; display: grid; grid-template-columns: 1fr 1fr; gap:12px;">
                     <div class="form-group">
                         <label>Type de restriction de la course</label>
@@ -236,13 +235,15 @@
                         <label>Chrono réf. PLUIE (sec)</label>
                         <input type="number" id="reg-ref-pluie" value="205" style="background: #111;" onchange="window.saveCustomRegulation()">
                     </div>
-                    <!-- ⛽ NOUVELLE CASE : CONSO PAR DÉFAUT -->
+                    
+                    <!-- ⛽ LA CASE MANQUANTE : CONSO PAR DÉFAUT DU CIRCUIT -->
                     <div class="form-group" style="grid-column: span 2;">
-                        <label style="color: var(--4race-coral);">⛽ Consommation de référence par défaut (L/tour)</label>
-                        <input type="number" id="reg-default-conso" value="1.77" step="0.01" style="background: #111; border-color: var(--4race-coral); font-weight: bold; color: #fff;" onchange="window.saveCustomRegulation()">
+                        <label style="color: var(--4race-coral); font-weight: bold;">⛽ Consommation de référence par défaut (L/tour)</label>
+                        <input type="number" id="reg-default-conso" value="1.77" step="0.01" style="background: #111; border: 1px solid var(--4race-coral); font-weight: bold; color: #fff; padding: 10px; border-radius: 6px;" onchange="window.saveCustomRegulation()">
                     </div>
                 </div>
             </div>
+            
             <div class="card">
                 <div class="card-title">👤 Équipages (4 Pilotes par Voiture)</div>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px;" id="setup-crew-inputs-zone"></div>
