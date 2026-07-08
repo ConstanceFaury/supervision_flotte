@@ -858,7 +858,7 @@
             window.isFCY = data.isFCY || false; window.isRedFlag = data.isRedFlag || false; window.weatherMode = data.weatherMode || "sec";
             window.selectedCircuit = data.selectedCircuit || "SPA";
 
-           // Restauration des inputs de configuration réglementaire à l'écran
+            // Restauration des inputs de configuration réglementaire à l'écran
             if (data.selectedCircuit === "CUSTOM" && data.circuitsDatabase?.CUSTOM) {
                 window.circuitsDatabase["CUSTOM"] = data.circuitsDatabase.CUSTOM;
                 document.getElementById("reg-mode").value = data.circuitsDatabase.CUSTOM.mode;
@@ -868,15 +868,13 @@
                 document.getElementById("reg-default-conso").value = data.circuitsDatabase.CUSTOM.defaultConso;
             }
 
-           for(let i=1; i<=6; i++) {
+            for(let i=1; i<=6; i++) {
                 let id = "v" + i; if(!data.cars || !data.cars[id]) continue;
                 const cloudCar = data.cars[id]; const localCar = window.fleetState[id];
 
                 // ----------------==================================================----------------
                 // 🤖 DÉTECTION ET AUTOMATISATION DU PASSAGE DE LA POMPE AU ROULAGE (STATUT OUT OU RUN)
                 // ----------------==================================================----------------
-                // Si la voiture était enregistrée au stand (IN/FUEL) localement mais que le cloud 
-                // (via RIS-Timing/Python) annonce qu'elle passe en "OUT" ou "RUN", on applique la stratégie cochée !
                 if ((localCar.carState === "IN" || localCar.carState === "FUEL" || localCar.isInsidePit) && 
                     (cloudCar.carState === "OUT" || cloudCar.carState === "RUN")) {
                     
@@ -886,25 +884,21 @@
                     const inputLitres = parseFloat(document.getElementById(`input-litres-${id}`)?.value) || 0;
                     const chkPilot = document.getElementById(`chk-pilot-${id}`)?.checked;
 
-                    // 1. Application automatique de l'essence sélectionnée au muret
                     if (radFull) {
                         localCar.fuel = maxFuel;
                     } else if (radPartial) {
                         localCar.fuel = Math.min(maxFuel, localCar.fuel + inputLitres);
                     }
 
-                    // 2. Application automatique de la rotation du pilote
                     if (chkPilot && localCar.rotation && localCar.rotation.length > 0) {
                         const oldPilot = localCar.rotation.shift();
                         localCar.rotation.push(oldPilot);
                     }
 
-                    // 3. Initialisation du nouveau relais
                     localCar.relaisStartTime = Date.now();
                     localCar.hasAlerted = false;
                     localCar.totalStintsDone = (localCar.totalStintsDone || 0) + 1;
 
-                    // On remet immédiatement les boutons radio sur "Plein complet" et "Changement" pour le prochain arrêt
                     setTimeout(() => {
                         if(document.getElementById(`rad-full-${id}`)) document.getElementById(`rad-full-${id}`).checked = true;
                         if(document.getElementById(`input-litres-${id}`)) document.getElementById(`input-litres-${id}`).disabled = true;
@@ -913,20 +907,27 @@
                 }
 
                 // Synchronisation classique des valeurs reçues du Cloud
-                // (Si pas de transition OUT, on prend bêtement les chiffres de Firebase)
                 if (cloudCar.carState !== "OUT" && cloudCar.carState !== "RUN") {
                     localCar.fuel = parseFloat(cloudCar.fuel);
                 }
                 
                 localCar.currentLap = parseInt(cloudCar.currentLap) || 0;
                 localCar.rotation = cloudCar.rotation || localCar.rotation;
-                localCar.isInsidePit = cloudCar.isInsidePit || false;
+                
+                // 🛠️ CORRECTIF 1 : Forcer le calcul et l'activation du chrono stand local au muret
+                localCar.isInsidePit = cloudCar.isInsidePit || (cloudCar.carState === "IN" || cloudCar.carState === "FUEL" || cloudCar.carState === "OUT");
+                
                 localCar.pitStartTime = cloudCar.pitStartTime || null;
                 localCar.carState = cloudCar.carState || "RUN";
                 if (cloudCar.relaisStartTime && cloudCar.carState === "RUN" && localCar.carState === "RUN") {
                     localCar.relaisStartTime = cloudCar.relaisStartTime;
                 }
                 localCar.totalStintsDone = cloudCar.totalStintsDone || 0;
+
+                // 🛠️ CORRECTIF 2 : Injection de la position RIS-Timing sur la carte muret
+                if(document.getElementById(`fleet-pos-${id}`)) {
+                    document.getElementById(`fleet-pos-${id}`).innerText = cloudCar.position || "-";
+                }
 
                 // Restauration des consommations individuelles par pilote
                 if (cloudCar.conso) {
@@ -942,7 +943,7 @@
                     }
                 }
 
-                // Maintien des valeurs d'inputs à l'écran si l'ingénieur est en train d'écrire
+                // Maintien des valeurs d'inputs à l'écran
                 for (let p = 1; p <= 4; p++) {
                     const inputPilote = document.getElementById(`s_${id}_${p}`);
                     if (inputPilote && document.activeElement !== inputPilote) {
@@ -956,7 +957,8 @@
                 const setupTeam = document.getElementById(`setup-team-${id}`);
                 if (setupTeam && document.activeElement !== setupTeam) setupTeam.value = cloudCar.teamNameInput || "";
 
-                if(cloudCar.isInsidePit) { 
+                // Lancement du chrono stand si la voiture est détectée arrêtée
+                if(localCar.isInsidePit) { 
                     window.startLocalPitTimer(id); 
                 } else { 
                     clearInterval(localCar.interval); 
@@ -968,7 +970,7 @@
             
             window.updateVisualsFromState();
         });
-
+        
         onValue(ref(db, 'logs'), (snapshot) => {
             const logs = snapshot.val(); const tbody = document.getElementById('fleetLogBody');
             if(tbody && logs) {
