@@ -662,6 +662,10 @@
                     clearInterval(localCar.interval); 
                 }
             }
+            
+            window.enemyDatabase = data.enemyDatabase || [];
+            if(typeof window.rebuildIntelTableLocal === "function") window.rebuildIntelTableLocal();
+            
             updateVisualsFromState();
         });
 
