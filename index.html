@@ -884,10 +884,79 @@
             document.getElementById("btn-apply-flash-drawer").disabled = true;
         };
 
-        window.calculateEnemyIntel = function() {
-            const num = document.getElementById("intelCarNum").value; const laps = parseInt(document.getElementById("intelCarLaps").value) || 1;
-            window.enemyDatabase.push({ num: num, laps: laps, conso: (42 / laps) });
+       window.calculateEnemyIntel = function() {
+            const num = document.getElementById("intelCarNum").value.trim(); 
+            // On s'assure de lire la bonne case d'input du muret
+            const laps = parseInt(document.getElementById("intelCarLaps").value) || 1;
+            const maxF = parseFloat(document.getElementById("setup-maxFuel").value) || 42;
+            
+            if(!num) { alert("Veuillez entrer un numéro de voiture."); return; }
+            
+            const c = maxF / laps; 
+            const danger = c < 1.76;
+            
+            // On ajoute la ligne à notre base locale
+            window.enemyDatabase.push({ 
+                num: num, 
+                laps: laps, 
+                conso: c, 
+                status: danger ? "🚨 Stratégie Éco" : "Normal" 
+            });
+            
+            // On recalcule immédiatement la moyenne et on redessine le tableau
+            window.rebuildIntelTableLocal();
             window.dbPushFullRaceState();
+        };
+
+        window.rebuildIntelTableLocal = function() {
+            const tbody = document.getElementById("intelTableBody"); 
+            if(!tbody) return; 
+            
+            tbody.innerHTML = "";
+            let totalConsoSum = 0; 
+            let totalCarsCount = 0;
+            
+            // 1. On redessine chaque ligne du tableau d'analyse comparative
+            window.enemyDatabase.forEach((e, idx) => {
+                totalConsoSum += e.conso; 
+                totalCarsCount++;
+                tbody.innerHTML += `
+                    <tr style="border-bottom:1px solid #1e1e26;">
+                        <td><strong>#${e.num}</strong></td>
+                        <td>Concurrent</td>
+                        <td>${e.laps} tr</td>
+                        <td class="monospace">${e.conso.toFixed(2)} L/tr</td>
+                        <td><button class="reset-btn" style="padding:4px 8px; font-size:10px; background:rgba(239,68,68,0.1); border-color:rgba(239,68,68,0.2); color:#ef4444;" onclick="window.deleteEnemyIndex(${idx})">✕ Suppr</button></td>
+                    </tr>`;
+            });
+
+            // 2. On calcule la moyenne générale incluant nos voitures s'il y a de la conso
+            for (let i = 1; i <= window.currentCarCount; i++) {
+                let carId = "v" + i;
+                const localCar = window.fleetState[carId];
+                if (localCar) {
+                    let pilotIdx = localCar.rotation[0];
+                    let coeff = window.weatherMode === "forte_pluie" ? 0.40 : (window.isFCY ? 0.50 : (window.weatherMode === "pluie_moderee" ? 0.75 : 1.0));
+                    let currentConso = (localCar.conso[pilotIdx]?.sec || 1.77) * coeff;
+                    if (currentConso > 0 && !window.isRedFlag) {
+                        totalConsoSum += currentConso;
+                        totalCarsCount++;
+                    }
+                }
+            }
+
+            // 3. On met à jour le gros bloc orange de moyenne générale
+            const mFinal = totalCarsCount > 0 ? (totalConsoSum / totalCarsCount) : 0;
+            const meanWidget = document.getElementById("globalMeanValue");
+            if (meanWidget) {
+                meanWidget.innerText = mFinal.toFixed(2) + " L";
+            }
+        };
+
+        window.deleteEnemyIndex = function(index) { 
+            window.enemyDatabase.splice(index, 1); 
+            window.rebuildIntelTableLocal();
+            window.dbPushFullRaceState(); 
         };
         
         window.rebuildIntelTableLocal = function() {
