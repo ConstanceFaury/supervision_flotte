@@ -761,8 +761,19 @@
             const fuel = parseFloat(document.getElementById("drawer-flash-fuel").value) || 0;
             const tSec = parseInt(document.getElementById("drawer-flash-sec").value) || 0;
             const tPluie = parseInt(document.getElementById("drawer-flash-pluie").value) || 0;
-            const total = tSec + tPluie; if(fuel <= 0 || total === 0) { alert("Données incomplètes !"); return; }
-            window.lastCalculatedFlashConsoLocal = fuel / ((tSec * 1.0) + (tPluie * 0.75));
+            const tDeluge = parseInt(document.getElementById("drawer-flash-deluge").value) || 0;
+            const tFcy = parseInt(document.getElementById("drawer-flash-fcy").value) || 0;
+
+            const total = tSec + tPluie + tDeluge + tFcy; 
+            if(fuel <= 0 || total === 0) { 
+                alert("Données de tours ou de carburant incomplètes !"); 
+                return; 
+            }
+
+            // Application exacte des coefficients d'équivalence d'endurance
+            const equivSec = (tSec * 1.0) + (tPluie * 0.75) + (tFcy * 0.50) + (tDeluge * 0.40);
+            window.lastCalculatedFlashConsoLocal = fuel / equivSec;
+
             document.getElementById("drawer-flash-result").innerText = `${window.lastCalculatedFlashConsoLocal.toFixed(3)} L/tr`;
             document.getElementById("btn-apply-flash-drawer").disabled = false;
         };
