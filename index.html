@@ -593,16 +593,45 @@
             window.dbPushFullRaceState();
         };
 
-        window.exitCarPit = function(id) {
-            const car = window.fleetState[id];
-            car.isInsidePit = false;
+   window.exitCarPit = function(id) {
+            const car = window.fleetState[id]; 
+            if (!car) return;
+
+            const maxFuel = parseFloat(document.getElementById("setup-maxFuel")?.value) || 42;
+
+            // 1. Récupération des choix faits dans le tableau de ravitaillement du muret
+            const radFull = document.getElementById(`rad-full-${id}`)?.checked;
+            const radPartial = document.getElementById(`rad-partial-${id}`)?.checked;
+            const inputLitres = parseFloat(document.getElementById(`input-litres-${id}`)?.value) || 0;
+            const chkPilot = document.getElementById(`chk-pilot-${id}`)?.checked;
+
+            // 2. Application de la stratégie Essence
+            if (radFull) {
+                car.fuel = maxFuel; // Plein complet
+            } else if (radPartial) {
+                car.fuel = Math.min(maxFuel, car.fuel + inputLitres); // Ajout précis sans déborder
+            }
+            // Si "Pas de Plein" est coché, car.fuel reste inchangé
+
+            // 3. Application du Changement Pilote (Rotation du tableau)
+            if (chkPilot && car.rotation && car.rotation.length > 0) {
+                const oldPilot = car.rotation.shift(); // On retire le pilote qui vient de rouler
+                car.rotation.push(oldPilot); // On le remet en fin de liste pour les prochains relais
+            }
+
+            // 4. Reset des statuts stands pour le départ en piste
+            car.isInsidePit = false; 
             car.carState = "RUN";
             car.pitStartTime = null;
-            car.relaisStartTime = Date.now(); // Le pilote quitte les stands : début officiel de son temps max
-            car.totalStintsDone++;
-            window.dbPushFullRaceState();
-        };
+            car.relaisStartTime = Date.now(); // Le chrono du nouveau relais pilote démarre maintenant
+            
+            // On réinitialise l'alerte pour le nouveau relais
+            car.hasAlerted = false; 
 
+            // 5. Envoi des nouvelles valeurs au cloud et actualisation immédiate de l'écran
+            window.dbPushFullRaceState();
+            window.updateVisualsFromState();
+        };
         window.updateVisualsFromState = function() {
             const maxFuel = parseFloat(document.getElementById("setup-maxFuel")?.value) || 42;
             const alertLimit = parseInt(document.getElementById("setup-alertLimit")?.value) || 3;
