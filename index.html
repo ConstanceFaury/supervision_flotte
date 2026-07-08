@@ -330,6 +330,23 @@
         window.enemyDatabase = [];
         window.selectedCircuit = "SPA";
 
+     window.currentCarCount = 4;
+        window.activeCarIdInDrawer = null;
+        window.isFCY = false;
+        window.isRedFlag = false;
+        window.weatherMode = "sec";
+        window.enemyDatabase = [];
+        window.selectedCircuit = "SPA";
+
+        // Base de données des circuits avec consos étalons spécifiques par écurie/pilote
+        window.circuitsDatabase = {
+            "SPA": { name: "Spa-Francorchamps (25h)", mode: "TIME_LIMIT", refSec: 185, refPluie: 205, defaultConso: 1.77 },
+            "Castellet": { name: "Castellet (8h)", mode: "WINDOW_LIMIT", refSec: 152, refPluie: 169, defaultConso: 1.38 },
+            "Dijon": { name: "Dijon-Prenois", mode: "WINDOW_LIMIT", refSec: 83, refPluie: 95, defaultConso: 1.25 },
+            "Nogaro": { name: "Nogaro (8h)", mode: "WINDOW_LIMIT", refSec: 104, refPluie: 116, defaultConso: 1.32 },
+            "Magny-cours": { name: "Magny-cours (8h)", mode: "WINDOW_LIMIT", refSec: 118, refPluie: 131, defaultConso: 1.41 }
+        };
+
         window.carIdMapping = { v1: "531", v2: "183", v3: "156", v4: "40", v5: "533", v6: "88" };
         window.teamNameMapping = { v1: "Team 1", v2: "Team 2", v3: "Team 3", v4: "Team 4", v5: "Team 5", v6: "Team 6" };
         window.pilotsDatabase = {
@@ -528,9 +545,20 @@
                 let coeff = window.weatherMode === "forte_pluie" ? 0.40 : (window.isFCY ? 0.50 : (window.weatherMode === "pluie_moderee" ? 0.75 : 1.0));
                 let currentConso = (localCar.conso[pilotIdx]?.sec || 1.77) * coeff; if(window.isRedFlag) currentConso = 0;
 
-                const lapsLeft = currentConso > 0 ? Math.floor(localCar.fuel / currentConso) : 0;
+              const lapsLeft = currentConso > 0 ? Math.floor(localCar.fuel / currentConso) : 0;
                 document.getElementById(`laps-${id}`).innerText = lapsLeft;
                 document.getElementById(`predict-box-${id}`).innerText = `🎯 Arrêt idéal : Tour ${localCar.currentLap + lapsLeft}`;
+
+                // =========================================================================
+                // 📥 METS TON BLOC EXACTEMENT ICI (À LA PLACE DE L'ANCIENNE LIGNE REFSEC)
+                // =========================================================================
+                // --- ⏳ CALCUL DES MINUTES ET TOURS DU RELAIS SELON LE CIRCUIT ---
+                const circuitInfo = window.circuitsDatabase[window.selectedCircuit || "SPA"];
+                const currentRefSec = window.weatherMode === "sec" ? (circuitInfo?.refSec || 185) : (circuitInfo?.refPluie || 205);
+                const fcyMultiplier = window.isFCY ? 1.4 : 1.0;
+                const totalSecondsLeft = lapsLeft * currentRefSec * fcyMultiplier;
+                const minutesLeft = Math.floor(totalSecondsLeft / 60);
+                // =========================================================================
 
                 // --- ⏳ CALCULS RÉGLEMENTAIRES DU SÉCURITÉ ROULAGE PILOTE ---
                 const stintTimeWidget = document.getElementById(`stint-time-${id}`);
@@ -631,6 +659,26 @@
         };
 
         buildHTMLElementsStructure();
+        window.handleCircuitRegulationChange = function(val) {
+                    window.selectedCircuit = val;
+                    const targetCircuit = window.circuitsDatabase[val];
+                    if (!targetCircuit) return;
+        
+                    // On réaligne automatiquement les consommations de base de la flotte selon le circuit choisi
+                    for(let i=1; i<=6; i++) {
+                        let id = "v" + i;
+                        if (window.fleetState[id]) {
+                            for(let p=1; p<=4; p++) {
+                                window.fleetState[id].conso[p].sec = targetCircuit.defaultConso;
+                            }
+                        }
+                    }
+        
+                    // On pousse la mise à jour sur Firebase pour synchroniser les ordinateurs du muret et du box
+                    window.dbPushFullRaceState();
+                    window.updateVisualsFromState();
+                };
+        
 
         onValue(ref(db, 'strategie_flotte'), (snapshot) => {
             const data = snapshot.val(); if(!data) return;
