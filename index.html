@@ -483,7 +483,7 @@
             window.dbPushFullRaceState();
         };
 
-        window.updateVisualsFromState = function() {
+       window.updateVisualsFromState = function() {
             const maxFuel = parseFloat(document.getElementById("setup-maxFuel")?.value) || 42;
             const alertLimit = parseInt(document.getElementById("setup-alertLimit")?.value) || 3;
 
@@ -493,23 +493,43 @@
             document.getElementById("weatherStateSelect").value = window.weatherMode;
 
             for(let i=1; i<=window.currentCarCount; i++) {
-                let id = "v" + i; const localCar = window.fleetState[id]; if(!localCar) continue;
+                let id = "v" + i; 
+                const localCar = window.fleetState[id]; 
+                
+                // On récupère les éléments HTML en premier pour éviter que le script ne plante
+                const card = document.getElementById(`card-${id}`); 
+                const badge = document.getElementById(`badge-${id}`);
+                if (!card) continue; // Si la carte n'est pas encore dessinée dans le DOM, on passe à la suivante
 
-                const pilotIdx = localCar.rotation[0];
+                const pilotIdx = localCar?.rotation?.[0] || "1";
                 const pName = window.pilotsDatabase[id][pilotIdx] || "-";
-                document.getElementById(`fleet-pilot-${id}`).innerText = pName;
+                if (document.getElementById(`fleet-pilot-${id}`)) {
+                    document.getElementById(`fleet-pilot-${id}`).innerText = pName;
+                }
 
-                const essenceActuelle = parseFloat(localCar.fuel) || 0;
-                document.getElementById(`fuel-val-${id}`).innerText = essenceActuelle.toFixed(1) + "L";
-                document.getElementById(`bar-${id}`).style.width = ((essenceActuelle / maxFuel) * 100) + "%";
-                document.getElementById(`fleet-lap-${id}`).innerText = "Tour " + localCar.currentLap;
+                const essenceActuelle = parseFloat(localCar?.fuel) || 0;
+                if (document.getElementById(`fuel-val-${id}`)) {
+                    document.getElementById(`fuel-val-${id}`).innerText = essenceActuelle.toFixed(1) + "L";
+                }
+                if (document.getElementById(`bar-${id}`)) {
+                    document.getElementById(`bar-${id}`).style.width = ((essenceActuelle / maxFuel) * 100) + "%";
+                }
+                
+                const tourActuel = parseInt(localCar?.currentLap) || 0;
+                if (document.getElementById(`fleet-lap-${id}`)) {
+                    document.getElementById(`fleet-lap-${id}`).innerText = "Tour " + tourActuel;
+                }
 
                 let coeff = window.weatherMode === "forte_pluie" ? 0.40 : (window.isFCY ? 0.50 : (window.weatherMode === "pluie_moderee" ? 0.75 : 1.0));
-                let currentConso = (localCar.conso[pilotIdx]?.sec || 1.77) * coeff; if(window.isRedFlag) currentConso = 0;
+                let currentConso = (localCar?.conso?.[pilotIdx]?.sec || 1.77) * coeff; if(window.isRedFlag) currentConso = 0;
 
-                const lapsLeft = currentConso > 0 ? Math.floor(localCar.fuel / currentConso) : 0;
-                document.getElementById(`laps-${id}`).innerText = lapsLeft;
-                document.getElementById(`predict-box-${id}`).innerText = `🎯 Arrêt idéal : Tour ${localCar.currentLap + lapsLeft}`;
+                const lapsLeft = currentConso > 0 ? Math.floor(essenceActuelle / currentConso) : 0;
+                if (document.getElementById(`laps-${id}`)) {
+                    document.getElementById(`laps-${id}`).innerText = lapsLeft;
+                }
+                if (document.getElementById(`predict-box-${id}`)) {
+                    document.getElementById(`predict-box-${id}`).innerText = `🎯 Arrêt idéal : Tour ${tourActuel + lapsLeft}`;
+                }
 
                 const currentRefSec = window.weatherMode === "sec" ? (window.fleetState.track_ref_sec || 185) : (window.fleetState.track_ref_pluie || 205);
                 const fcyMultiplier = window.isFCY ? 1.4 : 1.0;
@@ -518,66 +538,74 @@
 
                 const stintTimeWidget = document.getElementById(`stint-time-${id}`);
                 if (stintTimeWidget) {
-                    if (localCar.carState === "IN" || localCar.carState === "FUEL") {
+                    if (localCar?.carState === "IN" || localCar?.carState === "FUEL") {
                         stintTimeWidget.innerText = "🛒 Stand";
                     } else {
                         stintTimeWidget.innerText = minutesLeft > 0 ? `~ ${minutesLeft} min` : "🚨 BOX !";
                     }
                 }
 
-                const nextPilotIdx = localCar.rotation[1] || "2";
-                const nextPilotName = window.pilotsDatabase[id][nextPilotIdx] || `P${nextPilotIdx}`;
-                const nextPilotWidget = document.getElementById(`next-pilot-${id}`);
-                if (nextPilotWidget) nextPilotWidget.innerText = nextPilotName;
-
-                if(lapsLeft > 0) {
-                    const refS = window.weatherMode === "sec" ? 185 : 205;
-                    const heureC = new Date(Date.now() + (lapsLeft * refS * (window.isFCY?1.4:1.0) * 1000));
-                    document.getElementById(`target-time-${id}`).innerText = `🚨 STOP ESTIMÉ : ${String(heureC.getHours()).padStart(2,'0')}:${String(heureC.getMinutes()).padStart(2,'0')}:${String(heureC.getSeconds()).padStart(2,'0')}`;
-                } else { document.getElementById(`target-time-${id}`).innerText = window.isRedFlag?"🚨 COURSE EN PAUSE":"🚨 PANNE IMMINENTE"; }
-
-                const card = document.getElementById(`card-${id}`); const badge = document.getElementById(`badge-${id}`);
-                card.className = "car-card";
-                
-                if (localCar.isInsidePit || localCar.carState === "IN" || localCar.carState === "FUEL" || localCar.carState === "OUT") {
-                    document.getElementById(`opt-box-${id}`).style.display = "flex";
-                    document.getElementById(`btn-lap-${id}`).style.display = "none"; 
-                    document.getElementById(`btn-pit-${id}`).style.display = "none"; 
-                    document.getElementById(`btn-exit-${id}`).style.display = "block"; 
-                    document.getElementById(`pit-timer-${id}`).style.display = "block";
-                } else {
-                    document.getElementById(`opt-box-${id}`).style.display = "none";
-                    document.getElementById(`btn-lap-${id}`).style.display = "block"; 
-                    document.getElementById(`btn-pit-${id}`).style.display = "block"; 
-                    document.getElementById(`btn-exit-${id}`).style.display = "none"; 
-                    document.getElementById(`pit-timer-${id}`).style.display = "none";
+                if (document.getElementById(`target-time-${id}`)) {
+                    if(lapsLeft > 0) {
+                        const refS = window.weatherMode === "sec" ? 185 : 205;
+                        const heureC = new Date(Date.now() + (lapsLeft * refS * (window.isFCY?1.4:1.0) * 1000));
+                        document.getElementById(`target-time-${id}`).innerText = `🚨 STOP ESTIMÉ : ${String(heureC.getHours()).padStart(2,'0')}:${String(heureC.getMinutes()).padStart(2,'0')}:${String(heureC.getSeconds()).padStart(2,'0')}`;
+                    } else { 
+                        document.getElementById(`target-time-${id}`).innerText = window.isRedFlag ? "🚨 COURSE EN PAUSE" : "🚨 PANNE IMMINENTE"; 
+                    }
                 }
 
+                // --- RESET PROPRE DES STYLES INDIVIDUELS AVANT RE-DOSAGE ---
+                card.className = "car-card";
+                card.removeAttribute("style");
+                
+                let bText = "En Piste"; 
+                let bClass = "status-badge badge-piste";
+                
+                if (document.getElementById(`opt-box-${id}`)) {
+                    if (localCar?.isInsidePit || localCar?.carState === "IN" || localCar?.carState === "FUEL" || localCar?.carState === "OUT") {
+                        document.getElementById(`opt-box-${id}`).style.display = "flex";
+                        if(document.getElementById(`btn-lap-${id}`)) document.getElementById(`btn-lap-${id}`).style.display = "none"; 
+                        if(document.getElementById(`btn-pit-${id}`)) document.getElementById(`btn-pit-${id}`).style.display = "none"; 
+                        if(document.getElementById(`btn-exit-${id}`)) document.getElementById(`btn-exit-${id}`).style.display = "block"; 
+                        if(document.getElementById(`pit-timer-${id}`)) document.getElementById(`pit-timer-${id}`).style.display = "block";
+                    } else {
+                        document.getElementById(`opt-box-${id}`).style.display = "none";
+                        if(document.getElementById(`btn-lap-${id}`)) document.getElementById(`btn-lap-${id}`).style.display = "block"; 
+                        if(document.getElementById(`btn-pit-${id}`)) document.getElementById(`btn-pit-${id}`).style.display = "block"; 
+                        if(document.getElementById(`btn-exit-${id}`)) document.getElementById(`btn-exit-${id}`).style.display = "none"; 
+                        if(document.getElementById(`pit-timer-${id}`)) document.getElementById(`pit-timer-${id}`).style.display = "none";
+                    }
+                }
+
+                // --- APPLICATION VISUELLE GLOBALE ---
                 if (window.isRedFlag) { 
                     card.classList.add("state-red-flag"); 
                     bText = "COURSE ARRÊTÉE"; 
                     bClass = "status-badge badge-alert"; 
                 }
-                else if (localCar.carState === "IN") {
+                else if (localCar?.carState === "IN") {
                     card.classList.add("state-pit"); 
                     bText = "Entrée Stand (IN)"; 
                     bClass = "status-badge badge-stand";
                 }
-                else if (localCar.carState === "FUEL") {
+                else if (localCar?.carState === "FUEL") {
                     card.style.borderLeft = "4px solid #3498db";
                     card.style.backgroundColor = "#07111a";
                     bText = "⚡ RAVITAILLEMENT (FUEL)"; 
                     bClass = "status-badge";
-                    badge.style.backgroundColor = "rgba(52, 152, 219, 0.2)";
-                    badge.style.color = "#3498db";
+                    if(badge) {
+                        badge.style.backgroundColor = "rgba(52, 152, 219, 0.2)";
+                        badge.style.color = "#3498db";
+                    }
                 }
-                else if (localCar.carState === "OUT") {
+                else if (localCar?.carState === "OUT") {
                     card.classList.add("state-pit");
                     bText = "Sortie Pompe (OUT)"; 
                     bClass = "status-badge badge-stand";
                 }
                 else {
-                    if (lapsLeft <= alertLimit) { 
+                    if (lapsLeft <= alertLimit && lapsLeft > 0) { 
                         card.classList.add("state-alert"); 
                         bText = "ALERTE ESSENCE"; 
                         bClass = "status-badge badge-alert"; 
@@ -588,11 +616,13 @@
                         bClass = "status-badge badge-fcy"; 
                     }
                 }
-                badge.innerText = bText; 
-                badge.className = bClass;
+                
+                if(badge) {
+                    badge.innerText = bText; 
+                    badge.className = bClass;
+                }
             }
         };
-
         buildHTMLElementsStructure();
 
         onValue(ref(db, 'strategie_flotte'), (snapshot) => {
