@@ -488,7 +488,7 @@
             window.dbPushFullRaceState();
         };
 
-       function updateVisualsFromState() {
+        window.updateVisualsFromState = function() {
             const maxFuel = parseFloat(document.getElementById("setup-maxFuel")?.value) || 42;
             const alertLimit = parseInt(document.getElementById("setup-alertLimit")?.value) || 3;
 
@@ -504,16 +504,10 @@
                 const pName = window.pilotsDatabase[id][pilotIdx] || "-";
                 document.getElementById(`fleet-pilot-${id}`).innerText = pName;
 
-                // 1. Affichage direct du carburant calculé
                 const essenceActuelle = parseFloat(localCar.fuel) || 0;
                 document.getElementById(`fuel-val-${id}`).innerText = essenceActuelle.toFixed(1) + "L";
-                
-                // 2. Mise à jour de la barre de progression verte
                 document.getElementById(`bar-${id}`).style.width = ((essenceActuelle / maxFuel) * 100) + "%";
-                
-                // 3. Affichage du tour en cours
-                const tourActuel = parseInt(localCar.currentLap) || 0;
-                document.getElementById(`fleet-lap-${id}`).innerText = "Tour " + tourActuel;
+                document.getElementById(`fleet-lap-${id}`).innerText = "Tour " + localCar.currentLap;
 
                 let coeff = window.weatherMode === "forte_pluie" ? 0.40 : (window.isFCY ? 0.50 : (window.weatherMode === "pluie_moderee" ? 0.75 : 1.0));
                 let currentConso = (localCar.conso[pilotIdx]?.sec || 1.77) * coeff; if(window.isRedFlag) currentConso = 0;
@@ -522,7 +516,6 @@
                 document.getElementById(`laps-${id}`).innerText = lapsLeft;
                 document.getElementById(`predict-box-${id}`).innerText = `🎯 Arrêt idéal : Tour ${localCar.currentLap + lapsLeft}`;
 
-                // --- ⏳ CALCUL DES MINUTES DE RELAIS (COMMENCE QUAND LE STATUT EST OUT OU RUN) ---
                 const currentRefSec = window.weatherMode === "sec" ? (window.fleetState.track_ref_sec || 185) : (window.fleetState.track_ref_pluie || 205);
                 const fcyMultiplier = window.isFCY ? 1.4 : 1.0;
                 const totalSecondsLeft = lapsLeft * currentRefSec * fcyMultiplier;
@@ -530,7 +523,6 @@
 
                 const stintTimeWidget = document.getElementById(`stint-time-${id}`);
                 if (stintTimeWidget) {
-                    // Si la voiture est encore en train de ravitailler (IN ou FUEL), le relais n'a pas commencé
                     if (localCar.carState === "IN" || localCar.carState === "FUEL") {
                         stintTimeWidget.innerText = "🛒 Stand";
                     } else {
@@ -538,26 +530,22 @@
                     }
                 }
 
-                // --- 👤 PROCHAIN PILOTE (NEXT) ---
                 const nextPilotIdx = localCar.rotation[1] || "2";
                 const nextPilotName = window.pilotsDatabase[id][nextPilotIdx] || `P${nextPilotIdx}`;
                 const nextPilotWidget = document.getElementById(`next-pilot-${id}`);
                 if (nextPilotWidget) nextPilotWidget.innerText = nextPilotName;
 
-                // STOP ESTIMÉ HEURE
                 if(lapsLeft > 0) {
                     const refS = window.weatherMode === "sec" ? 185 : 205;
                     const heureC = new Date(Date.now() + (lapsLeft * refS * (window.isFCY?1.4:1.0) * 1000));
                     document.getElementById(`target-time-${id}`).innerText = `🚨 STOP ESTIMÉ : ${String(heureC.getHours()).padStart(2,'0')}:${String(heureC.getMinutes()).padStart(2,'0')}:${String(heureC.getSeconds()).padStart(2,'0')}`;
                 } else { document.getElementById(`target-time-${id}`).innerText = window.isRedFlag?"🚨 COURSE EN PAUSE":"🚨 PANNE IMMINENTE"; }
 
-                // --- GESTION VISUELLE SELON LES 4 MODES (RUN, IN, FUEL, OUT) ---
                 const card = document.getElementById(`card-${id}`); const badge = document.getElementById(`badge-${id}`);
                 card.className = "car-card";
                 
                 let bText = "En Piste"; let bClass = "status-badge badge-piste";
                 
-                // Affichage des modules d'options et timers selon si la voiture est dans la pitlane ou non
                 if (localCar.isInsidePit || localCar.carState === "IN" || localCar.carState === "FUEL" || localCar.carState === "OUT") {
                     document.getElementById(`opt-box-${id}`).style.display = "flex";
                     document.getElementById(`btn-lap-${id}`).style.display = "none"; 
@@ -572,7 +560,6 @@
                     document.getElementById(`pit-timer-${id}`).style.display = "none";
                 }
 
-                // Application des styles de cartes selon l'état exact
                 if (window.isRedFlag) { 
                     card.classList.add("state-red-flag"); 
                     bText = "COURSE ARRÊTÉE"; 
@@ -584,7 +571,7 @@
                     bClass = "status-badge badge-stand";
                 }
                 else if (localCar.carState === "FUEL") {
-                    card.style.borderLeft = "4px solid #3498db"; // Bordure Bleue pour la pompe
+                    card.style.borderLeft = "4px solid #3498db";
                     card.style.backgroundColor = "#07111a";
                     bText = "⚡ RAVITAILLEMENT (FUEL)"; 
                     bClass = "status-badge";
@@ -597,16 +584,10 @@
                     bClass = "status-badge badge-stand";
                 }
                 else {
-                    // Mode RUN classique en piste
                     if (lapsLeft <= alertLimit) { 
                         card.classList.add("state-alert"); 
                         bText = "ALERTE ESSENCE"; 
                         bClass = "status-badge badge-alert"; 
-                        
-                        if (!localCar.hasAlerted && lapsLeft > 0) { 
-                            localCar.hasAlerted = true; 
-                            window.triggerRacePopup("fuel", "⚠️ ALERTE ESSENCE CRITIQUE", `La voiture #${window.carIdMapping[id]} n'a plus que ${lapsLeft} tours ! BOX CE TOUR !`); 
-                        } 
                     }
                     else if (window.isFCY) { 
                         card.classList.add("state-fcy"); 
@@ -617,11 +598,10 @@
                 badge.innerText = bText; 
                 badge.className = bClass;
             }
-        }
+        };
 
         buildHTMLElementsStructure();
 
-        // --- ÉCOUTE PERMANENTE CLOUD FIREBASE ---
         onValue(ref(db, 'strategie_flotte'), (snapshot) => {
             const data = snapshot.val(); if(!data) return;
             window.isFCY = data.isFCY || false; window.isRedFlag = data.isRedFlag || false; window.weatherMode = data.weatherMode || "sec";
@@ -636,7 +616,6 @@
                 localCar.isInsidePit = cloudCar.isInsidePit || false;
                 localCar.pitStartTime = cloudCar.pitStartTime || null;
 
-                // Restauration de la lecture des consommations individuelles par pilote
                 if (cloudCar.conso) {
                     for(let p=1; p<=4; p++) {
                         if (cloudCar.conso[p]) localCar.conso[p].sec = parseFloat(cloudCar.conso[p].sec) || 1.77;
@@ -666,7 +645,7 @@
             window.enemyDatabase = data.enemyDatabase || [];
             if(typeof window.rebuildIntelTableLocal === "function") window.rebuildIntelTableLocal();
             
-            updateVisualsFromState();
+            window.updateVisualsFromState();
         });
 
         onValue(ref(db, 'logs'), (snapshot) => {
@@ -779,12 +758,10 @@
             window.dbPushFullRaceState();
         };
 
-        // --- GESTION DU DRAWER PANNEAU STRATÉGIE (RESTREINTE AUX SÉLECTIONS INDIVIDUELLES) ---
         window.openDrawer = function(id) {
             window.activeCarIdInDrawer = id; const car = window.fleetState[id];
             document.getElementById("drawer-car-title").innerText = `Stratégie Voiture #${window.carIdMapping[id]}`;
             
-            // Restauration de l'affectation des consommations individuelles par pilote dans les cases du Drawer
             document.getElementById("drawer-c-p1").value = car.conso[1]?.sec || 1.77;
             document.getElementById("drawer-c-p2").value = car.conso[2]?.sec || 1.77;
             document.getElementById("drawer-c-p3").value = car.conso[3]?.sec || 1.77;
@@ -816,7 +793,6 @@
             const id = window.activeCarIdInDrawer; if(!id) return;
             const car = window.fleetState[id];
             
-            // Sauvegarde ciblée des consommations individuelles
             car.conso[1].sec = parseFloat(document.getElementById("drawer-c-p1").value) || 1.77;
             car.conso[2].sec = parseFloat(document.getElementById("drawer-c-p2").value) || 1.77;
             car.conso[3].sec = parseFloat(document.getElementById("drawer-c-p3").value) || 1.77;
@@ -831,7 +807,6 @@
             window.dbPushFullRaceState();
         };
 
-        // --- MATHÉMATIQUES DU PLANIFICATEUR (DOUBLE VERROU TEMPS VS ESSENCE) ---
         window.refreshDrawerPlanifier = function(id) {
             const car = window.fleetState[id]; const tbody = document.getElementById("drawer-plan-body"); if(!tbody) return;
             const maxF = parseFloat(document.getElementById("setup-maxFuel")?.value) || 42;
@@ -870,7 +845,6 @@
                 return; 
             }
 
-            // Application exacte des coefficients d'équivalence d'endurance
             const equivSec = (tSec * 1.0) + (tPluie * 0.75) + (tFcy * 0.50) + (tDeluge * 0.40);
             window.lastCalculatedFlashConsoLocal = fuel / equivSec;
 
@@ -887,9 +861,9 @@
             document.getElementById("btn-apply-flash-drawer").disabled = true;
         };
 
-       window.calculateEnemyIntel = function() {
+        // --- ATTACHE EXPLICITE SUR WINDOW POUR LE BOUTON HTML ---
+        window.calculateEnemyIntel = function() {
             const num = document.getElementById("intelCarNum").value.trim(); 
-            // On s'assure de lire la bonne case d'input du muret
             const laps = parseInt(document.getElementById("intelCarLaps").value) || 1;
             const maxF = parseFloat(document.getElementById("setup-maxFuel").value) || 42;
             
@@ -898,7 +872,6 @@
             const c = maxF / laps; 
             const danger = c < 1.76;
             
-            // On ajoute la ligne à notre base locale
             window.enemyDatabase.push({ 
                 num: num, 
                 laps: laps, 
@@ -906,7 +879,6 @@
                 status: danger ? "🚨 Stratégie Éco" : "Normal" 
             });
             
-            // On recalcule immédiatement la moyenne et on redessine le tableau
             window.rebuildIntelTableLocal();
             window.dbPushFullRaceState();
         };
@@ -919,7 +891,6 @@
             let totalConsoSum = 0; 
             let totalCarsCount = 0;
             
-            // 1. On redessine chaque ligne du tableau d'analyse comparative
             window.enemyDatabase.forEach((e, idx) => {
                 totalConsoSum += e.conso; 
                 totalCarsCount++;
@@ -933,7 +904,6 @@
                     </tr>`;
             });
 
-            // 2. On calcule la moyenne générale incluant nos voitures s'il y a de la conso
             for (let i = 1; i <= window.currentCarCount; i++) {
                 let carId = "v" + i;
                 const localCar = window.fleetState[carId];
@@ -948,7 +918,6 @@
                 }
             }
 
-            // 3. On met à jour le gros bloc orange de moyenne générale
             const mFinal = totalCarsCount > 0 ? (totalConsoSum / totalCarsCount) : 0;
             const meanWidget = document.getElementById("globalMeanValue");
             if (meanWidget) {
@@ -961,14 +930,4 @@
             window.rebuildIntelTableLocal();
             window.dbPushFullRaceState(); 
         };
-        
-        window.rebuildIntelTableLocal = function() {
-            const tbody = document.getElementById("intelTableBody"); if(!tbody) return; tbody.innerHTML = "";
-            window.enemyDatabase.forEach((e, idx) => {
-                tbody.innerHTML += `<tr><td><strong>#${e.num}</strong></td><td>Concurrent</td><td>${e.laps} tr</td><td>${e.conso.toFixed(2)} L/tr</td><td><button class="reset-btn" style="padding:4px 8px; font-size:10px;" onclick="window.deleteEnemyIndex(${idx})">✕ Suppr</button></td></tr>`;
-            });
-        };
-        window.deleteEnemyIndex = function(index) { window.enemyDatabase.splice(index, 1); window.dbPushFullRaceState(); };
     </script>
-</body>
-</html>
