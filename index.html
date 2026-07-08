@@ -199,15 +199,42 @@
                     <option value="6">6 Voitures</option>
                 </select>
             </div>
-            <div class="card" style="border: 2px solid var(--4race-coral);">
-                <div class="card-title">🗺️ CIRCUIT DE LA COURSE & RÈGLEMENT</div>
-                <select id="setup-circuit" style="font-weight: bold;" onchange="window.handleCircuitRegulationChange(this.value)">
-                    <option value="SPA" selected>Spa-Francorchamps (25h - Max 1h30 Pilote)</option>
-                    <option value="Castellet">Castellet (8h - Fenêtres 40 min)</option>
-                    <option value="Dijon">Dijon-Prenois (Fenêtres 40 min)</option>
-                    <option value="Nogaro">Nogaro (8h - Fenêtres 40 min)</option>
-                    <option value="Magny-cours">Magny cours (8h - Fenêtres 40 min)</option>
-                </select>
+           <div class="card" style="border: 2px solid var(--4race-coral);">
+                <div class="card-title">🗺️ CIRCUIT DE LA COURSE & RÉGLEMENTATION</div>
+                <div class="form-group">
+                    <label>Sélectionner un tracé type :</label>
+                    <select id="setup-circuit" style="font-weight: bold;" onchange="window.handleCircuitRegulationChange(this.value)">
+                        <option value="SPA" selected>Spa-Francorchamps (25h - Limite Roulage Pilote)</option>
+                        <option value="Castellet">Castellet (8h - Fenêtres Fixes)</option>
+                        <option value="Dijon">Dijon-Prenois (Fenêtres Fixes)</option>
+                        <option value="Nogaro">Nogaro (8h - Fenêtres Fixes)</option>
+                        <option value="Magny-cours">Magny cours (8h - Fenêtres Fixes)</option>
+                        <option value="CUSTOM">🛠️ CONFIGURATION PERSONNALISÉE (SUR MESURE)</option>
+                    </select>
+                </div>
+                
+                <!-- Zone de configuration avancée pour ajouter n'importe quel type de course -->
+                <div id="custom-reg-zone" style="display:none; border-top:1px solid #222; margin-top:15px; padding-top:15px; grid-template-columns: 1fr 1fr; gap:10px;">
+                    <div class="form-group">
+                        <label>Type de restriction</label>
+                        <select id="reg-mode" onchange="window.saveCustomRegulation()">
+                            <option value="TIME_LIMIT">⏱️ Temps Max Pilote (ex: Spa)</option>
+                            <option value="WINDOW_LIMIT">🎟️ Fenêtre d'arrêt (ex: Courses de 8h)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label id="lbl-reg-val">Valeur de la limite (Minutes)</label>
+                        <input type="number" id="reg-limit-value" value="90" onchange="window.saveCustomRegulation()">
+                    </div>
+                    <div class="form-group">
+                        <label>Chrono réf. SEC (sec)</label>
+                        <input type="number" id="reg-ref-sec" value="185" onchange="window.saveCustomRegulation()">
+                    </div>
+                    <div class="form-group">
+                        <label>Chrono réf. PLUIE (sec)</label>
+                        <input type="number" id="reg-ref-pluie" value="205" onchange="window.saveCustomRegulation()">
+                    </div>
+                </div>
             </div>
             <div class="card">
                 <div class="card-title">👤 Équipages (4 Pilotes par Voiture)</div>
@@ -442,7 +469,55 @@
 
         window.handleCircuitRegulationChange = function(val) {
             window.selectedCircuit = val;
+            const customZone = document.getElementById("custom-reg-zone");
+            
+            if (val === "CUSTOM") {
+                if(customZone) customZone.style.display = "grid";
+                window.saveCustomRegulation();
+                return;
+            }
+            
+            if(customZone) customZone.style.display = "none";
+            const targetCircuit = window.circuitsDatabase[val];
+            if (!targetCircuit) return;
+
+            // Alignement des consommations de base
+            for(let i=1; i<=6; i++) {
+                let id = "v" + i;
+                if (window.fleetState[id]) {
+                    for(let p=1; p<=4; p++) {
+                        window.fleetState[id].conso[p].sec = targetCircuit.defaultConso;
+                    }
+                }
+            }
+
             window.dbPushFullRaceState();
+            window.updateVisualsFromState();
+        };
+
+        window.saveCustomRegulation = function() {
+            window.selectedCircuit = "CUSTOM";
+            const mode = document.getElementById("reg-mode").value;
+            const limitVal = parseInt(document.getElementById("reg-limit-value").value) || 40;
+            const rSec = parseInt(document.getElementById("reg-ref-sec").value) || 120;
+            const rPluie = parseInt(document.getElementById("reg-ref-pluie").value) || 140;
+            
+            // On écrase dynamiquement l'entrée CUSTOM de notre base locale
+            window.circuitsDatabase["CUSTOM"] = {
+                name: "Configuration Personnalisée",
+                mode: mode,
+                refSec: rSec,
+                refPluie: rPluie,
+                defaultConso: 1.50,
+                limitValue: limitVal
+            };
+            
+            // Mise à jour de l'affichage du libellé pour guider l'utilisateur
+            const lbl = document.getElementById("lbl-reg-val");
+            if(lbl) lbl.innerText = mode === "TIME_LIMIT" ? "Temps Conduite Max (Min)" : "Fenêtre Pit ouverte tous les (Tours)";
+
+            window.dbPushFullRaceState();
+            window.updateVisualsFromState();
         };
 
         window.dbToggleTrackState = function() {
@@ -561,28 +636,40 @@
                 // =========================================================================
 
                 // --- ⏳ CALCULS RÉGLEMENTAIRES DU SÉCURITÉ ROULAGE PILOTE ---
+         // --- ⏳ CALCULS RÉGLEMENTAIRES DU SÉCURITÉ ROULAGE PILOTE ---
                 const stintTimeWidget = document.getElementById(`stint-time-${id}`);
                 if (stintTimeWidget) {
                     if (localCar.carState === "IN" || localCar.carState === "FUEL") {
                         stintTimeWidget.innerText = "🛒 STAND";
                         stintTimeWidget.style.color = "var(--4race-text-muted)";
                     } else {
-                        // Calcul du temps écoulé depuis la sortie des stands
-                        const minutesRoulées = Math.floor((Date.now() - localCar.relaisStartTime) / 60000);
+                        const circuitInfo = window.circuitsDatabase[window.selectedCircuit || "SPA"];
                         
-                        if (window.selectedCircuit === "SPA") {
-                            // Spa-Francorchamps : Limite 1h30 (90 min réglementaires)
-                            const minutesRestantes = 90 - minutesRoulées;
+                        if (circuitInfo?.mode === "TIME_LIMIT") {
+                            // MODE TEMPS MAX (Ex: Spa 25h ou Custom Temps)
+                            const maxLimit = circuitInfo.limitValue || 90; // 90 min par défaut pour Spa
+                            const minutesRoulées = Math.floor((Date.now() - localCar.relaisStartTime) / 60000);
+                            const minutesRestantes = maxLimit - minutesRoulées;
+                            
                             stintTimeWidget.innerText = minutesRestantes + " min";
                             
                             if (minutesRestantes <= 5) { stintTimeWidget.style.color = "var(--state-alert)"; }
                             else if (minutesRestantes <= 10) { stintTimeWidget.style.color = "var(--state-fcy)"; }
                             else { stintTimeWidget.style.color = "var(--state-green)"; }
+                            
                         } else {
-                            // Circuits 8h : Fenêtre automatique toutes les 40 minutes
-                            const minutesAvantFenetre = 40 - (localCar.currentLap % 40); // Exemple de secours par tours
-                            stintTimeWidget.innerText = "~ Open";
-                            stintTimeWidget.style.color = "var(--state-green)";
+                            // MODE FENÊTRE DE RAVITAILLEMENT (Ex: Courses de 8h avec fenêtres toutes les 40 min)[cite: 1]
+                            const targetWindowTours = circuitInfo?.limitValue || 40; // 40 tours ou minutes par défaut[cite: 1]
+                            const tourActuelDansRelais = localCar.currentLap;
+                            const resteAvantFenetre = targetWindowTours - (tourActuelDansRelais % targetWindowTours);
+                            
+                            if (resteAvantFenetre <= 3) {
+                                stintTimeWidget.innerText = "🚨 FENÊTRE";
+                                stintTimeWidget.style.color = "var(--state-alert)";
+                            } else {
+                                stintTimeWidget.innerText = "Tour -" + resteAvantFenetre;
+                                stintTimeWidget.style.color = "var(--state-fcy)";
+                            }
                         }
                     }
                 }
