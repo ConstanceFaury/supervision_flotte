@@ -170,8 +170,7 @@
                         <div class="form-group"><label>N° Voiture adverse</label><input type="number" id="intelCarNum" value="426"></div>
                         <div class="form-group"><label>Tours dans leur relais</label><input type="number" id="intelCarLaps" value="21" min="1"></div>
                     </div>
-                    <button class="ctrl-btn" style="background: var(--4race-coral); color:white; width:100%; padding:12px; margin-top:10px;" onclick="calculateEnemyIntel()">📊 Analyser</button>
-                    <div style="background:#000; padding:15px; border-radius:8px; border:1px solid var(--4race-card-border); margin-top:20px; text-align:center;">
+                   <button id="btn-submit-intel" class="ctrl-btn" style="background: var(--4race-coral); color:white; width:100%; padding:12px; margin-top:10px; font-weight: bold; text-transform: uppercase;" onclick="window.calculateEnemyIntel()">📊 Analyser</button>
                         <span style="font-size:10px; color:var(--4race-text-muted); text-transform:uppercase; font-weight:bold;">Moyenne Générale Ennemis</span>
                         <div id="globalMeanValue" class="monospace" style="font-size:28px; color:var(--4race-coral); font-weight:bold; margin-top:5px;">0.00 L</div>
                     </div>
