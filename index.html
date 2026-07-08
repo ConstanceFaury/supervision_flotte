@@ -34,7 +34,7 @@
         .nav-btn:hover { color: var(--4race-text); background-color: rgba(255,255,255,0.03); }
         .nav-btn.active { color: #000; background-color: var(--4race-text); }
         .main-container { flex-grow: 1; display: flex; flex-direction: column; height: 100vh; overflow: hidden; position: relative; }
-        header { background-color: var(--4sidebar); border-bottom: 1px solid var(--4race-card-border); padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; }
+        header { background-color: var(--4race-sidebar); border-bottom: 1px solid var(--4race-card-border); padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; }
         .race-control-center { display: flex; gap: 12px; align-items: center; }
         .ctrl-btn { padding: 8px 16px; border-radius: 6px; font-weight: 700; text-transform: uppercase; font-size: 12px; cursor: pointer; border: 1px solid transparent; transition: all 0.2s; }
         .btn-track { background-color: rgba(34, 197, 94, 0.15); color: var(--state-green); border-color: rgba(34, 197, 94, 0.3); }
@@ -116,7 +116,7 @@
             <div class="form-group">
                 <input type="password" id="access-code" placeholder="CODE ACCÈS MURET" style="text-align: center; font-weight: bold;">
             </div>
-            <button class="ctrl-btn" style="background: var(--4race-coral); color: white; width: 100%; padding: 12px; margin-top: 10px;" onclick="checkAccess()">VALIDER</button>
+            <button class="ctrl-btn" style="background: var(--4race-coral); color: white; width: 100%; padding: 12px; margin-top: 10px;" id="login-submit-btn">VALIDER</button>
         </div>
     </div>
 
@@ -572,7 +572,7 @@
             }
         });
 
-        // --- GESTIONNAIRE DE CHRONO DE STAND ---
+        // --- GESTIONNAIRE DE CHRONO DE STAND (PIT TIMER) ---
         window.startLocalPitTimer = function(id) {
             const car = window.fleetState[id]; clearInterval(car.interval);
             const limit = parseInt(document.getElementById("setup-pitSec")?.value) || 180;
@@ -604,7 +604,7 @@
             if (logs.length === 0) { alert("Aucun tour enregistré dans les logs."); return; }
             let csvContent = "\uFEFFNom Team;N° Voiture;Pilote;N° Tour;Temps;Carburant\n";
             logs.forEach(log => {
-                csvContent += `${window.teamNameMapping['v1']};#${log.carNum};-;-;${log.action};${log.fuel}\n`;
+                csvContent += `${window.teamNameMapping['v1'] || ''};#${log.carNum || ''};-;-;${log.action || ''};${log.fuel || ''}\n`;
             });
             let blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             let link = document.createElement("a");
@@ -623,6 +623,7 @@
 
     <script>
         window.toggleSidebar = function() { document.getElementById("app-sidebar").classList.toggle("collapsed"); };
+        
         function switchPage(targetId, btnId) {
             document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -632,6 +633,7 @@
 
         // --- ACCÈS ET SÉCURITÉ ---
         window.isMuretReadOnly = true; 
+        
         window.setReadOnlyMode = function(st) {
             window.isMuretReadOnly = st; 
             document.querySelectorAll('.action-zone, .reset-btn').forEach(el => { el.style.display = st ? "none" : "flex"; });
@@ -646,6 +648,9 @@
                 window.setReadOnlyMode(false); 
             } else { alert("Code incorrect !"); }
         };
+
+        // Liaison de l'écouteur d'événement sur le bouton Valider
+        document.getElementById("login-submit-btn").addEventListener("click", window.checkAccess);
 
         window.changerNombreVoitures = function(val) {
             const nb = parseInt(val) || 4; window.currentCarCount = nb;
@@ -734,7 +739,7 @@
             }
         };
 
-        function executerCalculFlashDrawer() {
+        window.executerCalculFlashDrawer = function() {
             const fuel = parseFloat(document.getElementById("drawer-flash-fuel").value) || 0;
             const tSec = parseInt(document.getElementById("drawer-flash-sec").value) || 0;
             const tPluie = parseInt(document.getElementById("drawer-flash-pluie").value) || 0;
@@ -742,28 +747,29 @@
             window.lastCalculatedFlashConsoLocal = fuel / ((tSec * 1.0) + (tPluie * 0.75));
             document.getElementById("drawer-flash-result").innerText = `${window.lastCalculatedFlashConsoLocal.toFixed(3)} L/tr`;
             document.getElementById("btn-apply-flash-drawer").disabled = false;
-        }
+        };
 
-        function injecterFlashDrawer() {
+        window.injecterFlashDrawer = function() {
             const id = window.activeCarIdInDrawer; const pIdx = document.getElementById("drawer-flash-pilot").value;
             if(!id || !window.lastCalculatedFlashConsoLocal) return;
             window.fleetState[id].conso[pIdx].sec = parseFloat(window.lastCalculatedFlashConsoLocal.toFixed(2));
             document.getElementById(`drawer-c-p${pIdx}`).value = window.fleetState[id].conso[pIdx].sec;
             saveDrawerConfig(); alert("Consommation injectée !");
             document.getElementById("btn-apply-flash-drawer").disabled = true;
-        }
+        };
 
-        function calculateEnemyIntel() {
+        window.calculateEnemyIntel = function() {
             const num = document.getElementById("intelCarNum").value; const laps = parseInt(document.getElementById("intelCarLaps").value) || 1;
             window.enemyDatabase.push({ num: num, laps: laps, conso: (42 / laps) });
             window.dbPushFullRaceState();
-        }
-        function rebuildIntelTableLocal() {
+        };
+        
+        window.rebuildIntelTableLocal = function() {
             const tbody = document.getElementById("intelTableBody"); if(!tbody) return; tbody.innerHTML = "";
             window.enemyDatabase.forEach((e, idx) => {
                 tbody.innerHTML += `<tr><td><strong>#${e.num}</strong></td><td>Concurrent</td><td>${e.laps} tr</td><td>${e.conso.toFixed(2)} L/tr</td><td><button class="reset-btn" style="padding:4px 8px; font-size:10px;" onclick="window.deleteEnemyIndex(${idx})">✕ Suppr</button></td></tr>`;
             });
-        }
+        };
         window.deleteEnemyIndex = function(index) { window.enemyDatabase.splice(index, 1); window.dbPushFullRaceState(); };
     </script>
 </body>
