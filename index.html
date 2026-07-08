@@ -34,7 +34,7 @@
         .nav-btn:hover { color: var(--4race-text); background-color: rgba(255,255,255,0.03); }
         .nav-btn.active { color: #000; background-color: var(--4race-text); }
         .main-container { flex-grow: 1; display: flex; flex-direction: column; height: 100vh; overflow: hidden; position: relative; }
-        header { background-color: var(--4race-sidebar); border-bottom: 1px solid var(--4race-card-border); padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; }
+        header { background-color: var(--4sidebar); border-bottom: 1px solid var(--4race-card-border); padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; }
         .race-control-center { display: flex; gap: 12px; align-items: center; }
         .ctrl-btn { padding: 8px 16px; border-radius: 6px; font-weight: 700; text-transform: uppercase; font-size: 12px; cursor: pointer; border: 1px solid transparent; transition: all 0.2s; }
         .btn-track { background-color: rgba(34, 197, 94, 0.15); color: var(--state-green); border-color: rgba(34, 197, 94, 0.3); }
@@ -497,8 +497,7 @@
                 const lapsLeft = currentConso > 0 ? Math.floor(localCar.fuel / currentConso) : 0;
                 document.getElementById(`laps-${id}`).innerText = lapsLeft;
 
-                // --- LOGIQUE DU DOUBLE VERROU (TEMPS VS CARBURANT) ---
-                const currentRefSec = window.weatherMode === "sec" ? (window.fleetState.track_ref_sec || 185) : (window.fleetState.track_ref_pluie || 205);
+                const currentRefSec = window.weatherMode === "sec" ? 185 : 205;
                 const fcyMultiplier = window.isFCY ? 1.4 : 1.0;
                 const totalSecondsLeft = lapsLeft * currentRefSec * fcyMultiplier;
                 const minutesLeft = Math.floor(totalSecondsLeft / 60);
@@ -523,6 +522,9 @@
             }
         }
 
+        buildHTMLElementsStructure();
+
+        // --- ÉCOUTE PERMANENTE CLOUD FIREBASE ---
         onValue(ref(db, 'strategie_flotte'), (snapshot) => {
             const data = snapshot.val(); if(!data) return;
             window.isFCY = data.isFCY || false; window.isRedFlag = data.isRedFlag || false; window.weatherMode = data.weatherMode || "sec";
@@ -535,8 +537,8 @@
                 localCar.currentLap = parseInt(cloudCar.currentLap) || 0;
                 localCar.rotation = cloudCar.rotation || localCar.rotation;
                 localCar.isInsidePit = cloudCar.isInsidePit || false;
+                localCar.pitStartTime = cloudCar.pitStartTime || null;
 
-                // --- SÉCURITÉ DE SAISIE CLAVIER PILOTES ET CHÂSSIS ---
                 for (let p = 1; p <= 4; p++) {
                     const inputPilote = document.getElementById(`s_${id}_${p}`);
                     if (inputPilote && document.activeElement !== inputPilote) {
@@ -549,40 +551,220 @@
                 
                 const setupTeam = document.getElementById(`setup-team-${id}`);
                 if (setupTeam && document.activeElement !== setupTeam) setupTeam.value = cloudCar.teamNameInput || "";
+
+                if(cloudCar.isInsidePit) { 
+                    window.startLocalPitTimer(id); 
+                } else { 
+                    clearInterval(localCar.interval); 
+                }
             }
             updateVisualsFromState();
         });
 
-        buildHTMLElementsStructure();
+        onValue(ref(db, 'logs'), (snapshot) => {
+            const logs = snapshot.val(); const tbody = document.getElementById('fleetLogBody');
+            if(tbody && logs) {
+                tbody.innerHTML = "";
+                window.allRaceLogs = Object.values(logs);
+                Object.values(logs).slice(-45).reverse().forEach(l => {
+                    tbody.innerHTML += `<tr><td>${l.time}</td><td><strong style="color:var(--4race-coral);">#${l.carNum}</strong></td><td>${l.action}</td><td class="monospace">${l.fuel}</td><td>${l.status}</td></tr>`;
+                });
+            }
+        });
+
+        // --- GESTIONNAIRE DE CHRONO DE STAND ---
+        window.startLocalPitTimer = function(id) {
+            const car = window.fleetState[id]; clearInterval(car.interval);
+            const limit = parseInt(document.getElementById("setup-pitSec")?.value) || 180;
+            const divAdmin = document.getElementById(`pit-timer-${id}`);
+            
+            car.interval = setInterval(() => {
+                if (!car.isInsidePit || !car.pitStartTime) {
+                    clearInterval(car.interval);
+                    return;
+                }
+                car.pitSeconds = (Date.now() - car.pitStartTime) / 1000;
+                let rem = limit - car.pitSeconds;
+                let timeStr = window.formatPitTime(car.pitSeconds);
+
+                if(divAdmin) {
+                    if(rem > 0) { divAdmin.innerText = timeStr; divAdmin.style.color = "var(--state-alert)"; }
+                    else { divAdmin.innerText = timeStr + " (OK)"; divAdmin.style.color = "var(--state-green)"; }
+                }
+            }, 100);
+        };
+
+        window.formatPitTime = function(s) { 
+            return `${Math.floor(s/60).toString().padStart(2,'0')}:${Math.floor(s%60).toString().padStart(2,'0')}.${Math.floor((s%1)*10)}`; 
+        };
+
+        // --- EXPORTATIONS EXCEL & RESET ---
+        window.exportRaceToExcel = function() {
+            const logs = window.allRaceLogs || [];
+            if (logs.length === 0) { alert("Aucun tour enregistré dans les logs."); return; }
+            let csvContent = "\uFEFFNom Team;N° Voiture;Pilote;N° Tour;Temps;Carburant\n";
+            logs.forEach(log => {
+                csvContent += `${window.teamNameMapping['v1']};#${log.carNum};-;-;${log.action};${log.fuel}\n`;
+            });
+            let blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            let link = document.createElement("a");
+            link.setAttribute("href", URL.createObjectURL(blob));
+            link.setAttribute("download", `Strategie_Course_${new Date().toISOString().slice(0, 10)}.csv`);
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        };
+
+        window.dbResetEntireRace = function() {
+            if(confirm("🚨 EFFACER LES DONNÉES DE STRATÉGIE DÉFINITIVEMENT ?")) {
+                remove(ref(db, 'logs'));
+                remove(ref(db, 'strategie_flotte')).then(() => { location.reload(); });
+            }
+        };
+    </script>
+
+    <script>
+        window.toggleSidebar = function() { document.getElementById("app-sidebar").classList.toggle("collapsed"); };
+        function switchPage(targetId, btnId) {
+            document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(targetId).classList.add('active');
+            if(btnId) document.getElementById(btnId).classList.add('active');
+        }
+
+        // --- ACCÈS ET SÉCURITÉ ---
+        window.isMuretReadOnly = true; 
+        window.setReadOnlyMode = function(st) {
+            window.isMuretReadOnly = st; 
+            document.querySelectorAll('.action-zone, .reset-btn').forEach(el => { el.style.display = st ? "none" : "flex"; });
+            const appHeader = document.getElementById("app-header");
+            if (appHeader) appHeader.style.display = st ? "none" : "flex"; 
+        };
+
         window.checkAccess = function() {
-    const code = document.getElementById("access-code").value.trim().toUpperCase();
-    
-    // ACCÈS ADMIN COMPLET
-    if (code === "ADMIN123") { 
-        document.getElementById("login-popup").style.display = "none"; // Masque le popup
-        setReadOnlyMode(false); // Déverrouille les boutons
-    } 
-    else { 
-        alert("Code incorrect ! Veuillez réessayer."); 
-    }
-};
+            const code = document.getElementById("access-code").value.trim().toUpperCase();
+            if (code === "ADMIN123") { 
+                document.getElementById("login-popup").style.display = "none"; 
+                window.setReadOnlyMode(false); 
+            } else { alert("Code incorrect !"); }
+        };
 
-window.isMuretReadOnly = true; 
+        window.changerNombreVoitures = function(val) {
+            const nb = parseInt(val) || 4; window.currentCarCount = nb;
+            for(let i=1; i<=4; i++) {
+                let id = "v" + i;
+                if(document.getElementById(`card-${id}`)) document.getElementById(`card-${id}`).style.display = i<=nb?"flex":"none";
+                if(document.getElementById(`block-setup-${id}`)) document.getElementById(`block-setup-${id}`).style.display = i<=nb?"grid":"none";
+                if(document.getElementById(`crew-${id}`)) document.getElementById(`crew-${id}`).style.display = i<=nb?"block":"none";
+            }
+            if(typeof window.dbPushFullRaceState === "function") window.dbPushFullRaceState();
+        };
 
-function setReadOnlyMode(st) {
-    window.isMuretReadOnly = st; 
-    
-    // Affiche ou masque les boutons d'action et reset
-    document.querySelectorAll('.action-zone, .reset-btn').forEach(el => { 
-        el.style.display = st ? "none" : "flex"; 
-    });
-    
-    // Affiche ou masque le header principal
-    const appHeader = document.getElementById("app-header");
-    if (appHeader) {
-        appHeader.style.display = st ? "none" : "flex"; 
-    }
-}
+        window.updateChassisNumberFromSetup = function(id, val) {
+            window.carIdMapping[id] = val;
+            document.querySelectorAll(`.lbl-${id}`).forEach(el => { el.innerText = "#" + val; });
+            window.dbPushFullRaceState();
+        };
+
+        window.updateTeamNameFromSetup = function(id, val) {
+            window.teamNameMapping[id] = val;
+            if(document.getElementById(`fleet-team-${id}`)) document.getElementById(`fleet-team-${id}`).innerText = val;
+            window.dbPushFullRaceState();
+        };
+
+        // --- GESTION DU DRAWER PANNEAU STRATÉGIE ---
+        window.openDrawer = function(id) {
+            window.activeCarIdInDrawer = id; const car = window.fleetState[id];
+            document.getElementById("drawer-car-title").innerText = `Stratégie Voiture #${window.carIdMapping[id]}`;
+            document.getElementById("drawer-c-p1").value = car.conso[1]?.sec || 1.77;
+            document.getElementById("drawer-c-p2").value = car.conso[2]?.sec || 1.77;
+            document.getElementById("drawer-c-p3").value = car.conso[3]?.sec || 1.77;
+            document.getElementById("drawer-c-p4").value = car.conso[4]?.sec || 1.77;
+
+            for(let p=1; p<=4; p++) {
+                let pN = document.getElementById(`s_${id}_${p}`)?.value || `Pilote ${p}`;
+                document.getElementById(`lbl-drawer-p${p}`).innerText = pN;
+            }
+            let fSel = document.getElementById("drawer-flash-pilot");
+            fSel.innerHTML = `<option value="1">${document.getElementById(`s_${id}_1`)?.value || 'P1'}</option><option value="2">${document.getElementById(`s_${id}_2`)?.value || 'P2'}</option><option value="3">${document.getElementById(`s_${id}_3`)?.value || 'P3'}</option><option value="4">${document.getElementById(`s_${id}_4`)?.value || 'P4'}</option>`;
+
+            for(let r=1; r<=4; r++) {
+                let sRot = document.getElementById(`drawer-rot-r${r}`);
+                let sVal = car.rotation[r-1] || String(r);
+                sRot.innerHTML = `<option value="1" ${sVal==='1'?'selected':''}>1</option><option value="2" ${sVal==='2'?'selected':''}>2</option><option value="3" ${sVal==='3'?'selected':''}>3</option><option value="4" ${sVal==='4'?'selected':''}>4</option>`;
+            }
+            window.refreshDrawerPlanifier(id);
+            document.getElementById("car-drawer").classList.add("open");
+        };
+
+        function saveDrawerConfig() {
+            const id = window.activeCarIdInDrawer; if(!id) return;
+            const car = window.fleetState[id];
+            car.conso[1].sec = parseFloat(document.getElementById("drawer-c-p1").value) || 1.77;
+            car.conso[2].sec = parseFloat(document.getElementById("drawer-c-p2").value) || 1.77;
+            car.conso[3].sec = parseFloat(document.getElementById("drawer-c-p3").value) || 1.77;
+            car.conso[4].sec = parseFloat(document.getElementById("drawer-c-p4").value) || 1.77;
+
+            car.rotation[0] = document.getElementById("drawer-rot-r1").value;
+            window.refreshDrawerPlanifier(id);
+            window.dbPushFullRaceState();
+        }
+
+        // --- MATHÉMATIQUES DU PLANIFICATEUR (DOUBLE VERROU TEMPS VS ESSENCE) ---
+        window.refreshDrawerPlanifier = function(id) {
+            const car = window.fleetState[id]; const tbody = document.getElementById("drawer-plan-body"); if(!tbody) return;
+            const maxF = parseFloat(document.getElementById("setup-maxFuel")?.value) || 42;
+            const tempsMaxRelaisMinutes = 45; 
+            
+            let coeff = window.weatherMode === "forte_pluie" ? 0.40 : (window.isFCY ? 0.50 : (window.weatherMode === "pluie_moderee" ? 0.75 : 1.0));
+            const currentRefSec = window.weatherMode === "sec" ? 185 : 205;
+            const tempsMoyenTourMinutes = (currentRefSec * (window.isFCY ? 1.4 : 1.0)) / 60;
+
+            tbody.innerHTML = ""; let trackL = car.currentLap;
+            for(let i=0; i<4; i++) {
+                let pIdx = car.rotation[i] || "1"; let pName = document.getElementById(`s_${id}_${pIdx}`)?.value || `P${pIdx}`;
+                let c = (car.conso[pIdx]?.sec || 1.77) * coeff;
+                
+                let toursMaxEssence = (i===0) ? Math.floor(car.fuel / c) : Math.floor(maxF / c);
+                let toursMaxTempsPilote = Math.floor(tempsMaxRelaisMinutes / tempsMoyenTourMinutes);
+                
+                let toursReelsPossibles = Math.min(toursMaxEssence, toursMaxTempsPilote);
+                let causeLimite = toursMaxTempsPilote < toursMaxEssence ? "⏱️ PILOTE" : "⛽ ESSENCE";
+                
+                trackL += toursReelsPossibles;
+                tbody.innerHTML += `<tr style="${causeLimite === '⏱️ PILOTE' ? 'color: var(--state-fcy);' : ''}"><td>Relais ${i+1}</td><td><strong>${pName}</strong></td><td>~ ${toursReelsPossibles} tr (Fin: ${trackL}) <small>[${causeLimite}]</small></td></tr>`;
+            }
+        };
+
+        function executerCalculFlashDrawer() {
+            const fuel = parseFloat(document.getElementById("drawer-flash-fuel").value) || 0;
+            const tSec = parseInt(document.getElementById("drawer-flash-sec").value) || 0;
+            const tPluie = parseInt(document.getElementById("drawer-flash-pluie").value) || 0;
+            const total = tSec + tPluie; if(fuel <= 0 || total === 0) { alert("Données incomplètes !"); return; }
+            window.lastCalculatedFlashConsoLocal = fuel / ((tSec * 1.0) + (tPluie * 0.75));
+            document.getElementById("drawer-flash-result").innerText = `${window.lastCalculatedFlashConsoLocal.toFixed(3)} L/tr`;
+            document.getElementById("btn-apply-flash-drawer").disabled = false;
+        }
+
+        function injecterFlashDrawer() {
+            const id = window.activeCarIdInDrawer; const pIdx = document.getElementById("drawer-flash-pilot").value;
+            if(!id || !window.lastCalculatedFlashConsoLocal) return;
+            window.fleetState[id].conso[pIdx].sec = parseFloat(window.lastCalculatedFlashConsoLocal.toFixed(2));
+            document.getElementById(`drawer-c-p${pIdx}`).value = window.fleetState[id].conso[pIdx].sec;
+            saveDrawerConfig(); alert("Consommation injectée !");
+            document.getElementById("btn-apply-flash-drawer").disabled = true;
+        }
+
+        function calculateEnemyIntel() {
+            const num = document.getElementById("intelCarNum").value; const laps = parseInt(document.getElementById("intelCarLaps").value) || 1;
+            window.enemyDatabase.push({ num: num, laps: laps, conso: (42 / laps) });
+            window.dbPushFullRaceState();
+        }
+        function rebuildIntelTableLocal() {
+            const tbody = document.getElementById("intelTableBody"); if(!tbody) return; tbody.innerHTML = "";
+            window.enemyDatabase.forEach((e, idx) => {
+                tbody.innerHTML += `<tr><td><strong>#${e.num}</strong></td><td>Concurrent</td><td>${e.laps} tr</td><td>${e.conso.toFixed(2)} L/tr</td><td><button class="reset-btn" style="padding:4px 8px; font-size:10px;" onclick="window.deleteEnemyIndex(${idx})">✕ Suppr</button></td></tr>`;
+            });
+        }
+        window.deleteEnemyIndex = function(index) { window.enemyDatabase.splice(index, 1); window.dbPushFullRaceState(); };
     </script>
 </body>
 </html>
