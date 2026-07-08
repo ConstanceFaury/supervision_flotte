@@ -698,9 +698,18 @@
                 localCar.relaisStartTime = cloudCar.relaisStartTime || Date.now();
                 localCar.totalStintsDone = cloudCar.totalStintsDone || 0;
 
+               // Restauration intelligente des consommations (Si le circuit change, on prend la conso du circuit)
                 if (cloudCar.conso) {
                     for(let p=1; p<=4; p++) {
-                        if (cloudCar.conso[p]) localCar.conso[p].sec = parseFloat(cloudCar.conso[p].sec) || 1.77;
+                        if (cloudCar.conso[p]) {
+                            // Si la valeur cloud est celle par défaut de Spa mais qu'on est sur un autre circuit, on force la mise à jour
+                            const circuitInfo = window.circuitsDatabase[window.selectedCircuit];
+                            if (window.selectedCircuit !== "SPA" && parseFloat(cloudCar.conso[p].sec) === 1.77) {
+                                localCar.conso[p].sec = circuitInfo?.defaultConso || 1.32;
+                            } else {
+                                localCar.conso[p].sec = parseFloat(cloudCar.conso[p].sec) || 1.77;
+                            }
+                        }
                     }
                 }
 
