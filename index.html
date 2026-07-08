@@ -554,6 +554,35 @@
         });
 
         buildHTMLElementsStructure();
+        window.checkAccess = function() {
+    const code = document.getElementById("access-code").value.trim().toUpperCase();
+    
+    // ACCÈS ADMIN COMPLET
+    if (code === "ADMIN123") { 
+        document.getElementById("login-popup").style.display = "none"; // Masque le popup
+        setReadOnlyMode(false); // Déverrouille les boutons
+    } 
+    else { 
+        alert("Code incorrect ! Veuillez réessayer."); 
+    }
+};
+
+window.isMuretReadOnly = true; 
+
+function setReadOnlyMode(st) {
+    window.isMuretReadOnly = st; 
+    
+    // Affiche ou masque les boutons d'action et reset
+    document.querySelectorAll('.action-zone, .reset-btn').forEach(el => { 
+        el.style.display = st ? "none" : "flex"; 
+    });
+    
+    // Affiche ou masque le header principal
+    const appHeader = document.getElementById("app-header");
+    if (appHeader) {
+        appHeader.style.display = st ? "none" : "flex"; 
+    }
+}
     </script>
 </body>
 </html>
