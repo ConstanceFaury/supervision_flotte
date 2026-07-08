@@ -72,7 +72,6 @@
         .progress-bar { background: var(--state-green); height: 100%; width: 100%; transition: width 0.4s; }
         .pit-options-box { display: none; background-color: #050507; padding: 10px; border-radius: 6px; font-size: 11px; flex-direction: column; gap: 8px; border: 1px solid var(--4race-card-border); }
         .pit-options-box label { display: flex; align-items: center; gap: 8px; cursor: pointer; color: #aaa; }
-        .pit-options-box label input[type="number"] { background: #111; color: #fff; border: 1px solid #333; padding: 2px 5px; border-radius: 4px; }
         .pit-timer-block { display: none; text-align: center; font-size: 24px; font-weight: bold; color: var(--state-alert); background: rgba(239, 68, 68, 0.1); padding: 6px; border-radius: 6px; }
         .action-zone { display: flex; flex-direction: column; gap: 8px; margin-top: auto; }
         .btn-quick { padding: 10px; font-size: 12px; font-weight: 700; text-transform: uppercase; border-radius: 6px; border: none; cursor: pointer; text-align: center; }
@@ -170,7 +169,8 @@
                         <div class="form-group"><label>N° Voiture adverse</label><input type="number" id="intelCarNum" value="426"></div>
                         <div class="form-group"><label>Tours dans leur relais</label><input type="number" id="intelCarLaps" value="21" min="1"></div>
                     </div>
-                   <button id="btn-submit-intel" class="ctrl-btn" style="background: var(--4race-coral); color:white; width:100%; padding:12px; margin-top:10px; font-weight: bold; text-transform: uppercase;" onclick="window.calculateEnemyIntel()">📊 Analyser</button>
+                    <button id="btn-submit-intel" class="ctrl-btn" style="background: var(--4race-coral); color:white; width:100%; padding:12px; margin-top:10px; font-weight: bold; text-transform: uppercase;" onclick="window.calculateEnemyIntel()">📊 Espionner & Analyser</button>
+                    <div style="background:#000; padding:15px; border-radius:8px; border:1px solid var(--4race-card-border); margin-top:20px; text-align:center;">
                         <span style="font-size:10px; color:var(--4race-text-muted); text-transform:uppercase; font-weight:bold;">Moyenne Générale Ennemis</span>
                         <div id="globalMeanValue" class="monospace" style="font-size:28px; color:var(--4race-coral); font-weight:bold; margin-top:5px;">0.00 L</div>
                     </div>
@@ -240,12 +240,11 @@
         </div>
     </div>
 
-    <<div id="car-drawer" class="drawer">
+    <div id="car-drawer" class="drawer">
         <div class="drawer-header">
             <h2 id="drawer-car-title" style="font-style: italic;">Configuration Stratégie</h2>
             <button class="drawer-close" onclick="document.getElementById('car-drawer').classList.remove('open')">✕</button>
         </div>
-        
         <div style="border-bottom: 1px solid var(--4race-card-border); padding-bottom: 15px;">
             <h4 style="font-size:12px; color:var(--4race-coral); margin-bottom:12px; text-transform:uppercase;">📊 Fiche Consos Étalon (Données SEC)</h4>
             <div class="form-row">
@@ -257,7 +256,6 @@
                 <div class="form-group"><label id="lbl-drawer-p4">Pilote 4</label><input type="number" id="drawer-c-p4" step="0.01" onchange="saveDrawerConfig()"></div>
             </div>
         </div>
-
         <div style="border-bottom: 1px solid var(--4race-card-border); padding-bottom: 15px; background: rgba(0,0,0,0.15); padding: 12px; border-radius: 8px;">
             <div style="color: #00bc8c; font-weight: bold; font-size: 12px; display: flex; justify-content: space-between; margin-bottom: 12px; font-style: italic;">
                 <span>🧮 DEBRIEF FLASH CONSO</span>
@@ -289,13 +287,11 @@
                     <input type="number" id="drawer-flash-fcy" value="0" style="padding:10px; text-align:center; font-size:13px; background:#16161f; border:1px solid var(--4race-card-border); color:#fff; border-radius:6px; width:100%;">
                 </div>
             </div>
-
             <div class="form-row" style="margin-top:15px;">
                 <button class="ctrl-btn" style="background:#e67e22; color:white; font-size:11px; padding:10px 0;" onclick="executerCalculFlashDrawer()">🧮 Calculer</button>
                 <button class="ctrl-btn" id="btn-apply-flash-drawer" style="background:#7f8c8d; color:white; font-size:11px; padding:10px 0;" disabled onclick="injecterFlashDrawer()">📥 Injecter</button>
             </div>
         </div>
-
         <div style="border-bottom: 1px solid var(--4race-card-border); padding-bottom: 15px;">
             <h4 style="font-size:12px; color:var(--state-fcy); margin-bottom:12px; text-transform:uppercase;">📋 Rotation des Prochains Relais</h4>
             <div class="form-row">
@@ -307,7 +303,6 @@
                 <div class="form-group"><label>Relais N+3</label><select id="drawer-rot-r4" onchange="saveDrawerConfig()"></select></div>
             </div>
         </div>
-
         <div>
             <h4 style="font-size:12px; color:#fff; margin-bottom:12px; text-transform:uppercase; font-style:italic;">🔮 Planificateur Prédictif</h4>
             <table style="font-size:11px;">
@@ -544,8 +539,6 @@
                 const card = document.getElementById(`card-${id}`); const badge = document.getElementById(`badge-${id}`);
                 card.className = "car-card";
                 
-                let bText = "En Piste"; let bClass = "status-badge badge-piste";
-                
                 if (localCar.isInsidePit || localCar.carState === "IN" || localCar.carState === "FUEL" || localCar.carState === "OUT") {
                     document.getElementById(`opt-box-${id}`).style.display = "flex";
                     document.getElementById(`btn-lap-${id}`).style.display = "none"; 
@@ -693,7 +686,8 @@
             });
             let blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             let link = document.createElement("a");
-            link.setAttribute("href", URL.createObjectURL(blob));
+            let url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
             link.setAttribute("download", `Strategie_Course_${new Date().toISOString().slice(0, 10)}.csv`);
             document.body.appendChild(link); link.click(); document.body.removeChild(link);
         };
@@ -840,10 +834,7 @@
             const tFcy = parseInt(document.getElementById("drawer-flash-fcy").value) || 0;
 
             const total = tSec + tPluie + tDeluge + tFcy; 
-            if(fuel <= 0 || total === 0) { 
-                alert("Données de tours ou de carburant incomplètes !"); 
-                return; 
-            }
+            if(fuel <= 0 || total === 0) { alert("Données de tours ou de carburant incomplètes !"); return; }
 
             const equivSec = (tSec * 1.0) + (tPluie * 0.75) + (tFcy * 0.50) + (tDeluge * 0.40);
             window.lastCalculatedFlashConsoLocal = fuel / equivSec;
@@ -861,7 +852,6 @@
             document.getElementById("btn-apply-flash-drawer").disabled = true;
         };
 
-        // --- ATTACHE EXPLICITE SUR WINDOW POUR LE BOUTON HTML ---
         window.calculateEnemyIntel = function() {
             const num = document.getElementById("intelCarNum").value.trim(); 
             const laps = parseInt(document.getElementById("intelCarLaps").value) || 1;
@@ -931,3 +921,5 @@
             window.dbPushFullRaceState(); 
         };
     </script>
+</body>
+</html>
