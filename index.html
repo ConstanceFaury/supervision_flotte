@@ -489,7 +489,7 @@
             window.dbPushFullRaceState();
         };
 
-        function updateVisualsFromState() {
+       function updateVisualsFromState() {
             const maxFuel = parseFloat(document.getElementById("setup-maxFuel")?.value) || 42;
             const alertLimit = parseInt(document.getElementById("setup-alertLimit")?.value) || 3;
 
@@ -499,40 +499,124 @@
             document.getElementById("weatherStateSelect").value = window.weatherMode;
 
             for(let i=1; i<=window.currentCarCount; i++) {
-                let id = "v" + i; const localCar = window.fleetState[id];
+                let id = "v" + i; const localCar = window.fleetState[id]; if(!localCar) continue;
+
                 const pilotIdx = localCar.rotation[0];
                 const pName = window.pilotsDatabase[id][pilotIdx] || "-";
                 document.getElementById(`fleet-pilot-${id}`).innerText = pName;
 
+                // 1. Affichage direct du carburant calculé
                 const essenceActuelle = parseFloat(localCar.fuel) || 0;
                 document.getElementById(`fuel-val-${id}`).innerText = essenceActuelle.toFixed(1) + "L";
+                
+                // 2. Mise à jour de la barre de progression verte
                 document.getElementById(`bar-${id}`).style.width = ((essenceActuelle / maxFuel) * 100) + "%";
-                document.getElementById(`fleet-lap-${id}`).innerText = "Tour " + localCar.currentLap;
+                
+                // 3. Affichage du tour en cours
+                const tourActuel = parseInt(localCar.currentLap) || 0;
+                document.getElementById(`fleet-lap-${id}`).innerText = "Tour " + tourActuel;
 
                 let coeff = window.weatherMode === "forte_pluie" ? 0.40 : (window.isFCY ? 0.50 : (window.weatherMode === "pluie_moderee" ? 0.75 : 1.0));
-                let currentConso = (localCar.conso[pilotIdx]?.sec || 1.77) * coeff;
+                let currentConso = (localCar.conso[pilotIdx]?.sec || 1.77) * coeff; if(window.isRedFlag) currentConso = 0;
+
                 const lapsLeft = currentConso > 0 ? Math.floor(localCar.fuel / currentConso) : 0;
                 document.getElementById(`laps-${id}`).innerText = lapsLeft;
+                document.getElementById(`predict-box-${id}`).innerText = `🎯 Arrêt idéal : Tour ${localCar.currentLap + lapsLeft}`;
 
-                const currentRefSec = window.weatherMode === "sec" ? 185 : 205;
+                // --- ⏳ CALCUL DES MINUTES DE RELAIS (COMMENCE QUAND LE STATUT EST OUT OU RUN) ---
+                const currentRefSec = window.weatherMode === "sec" ? (window.fleetState.track_ref_sec || 185) : (window.fleetState.track_ref_pluie || 205);
                 const fcyMultiplier = window.isFCY ? 1.4 : 1.0;
                 const totalSecondsLeft = lapsLeft * currentRefSec * fcyMultiplier;
                 const minutesLeft = Math.floor(totalSecondsLeft / 60);
 
+                const stintTimeWidget = document.getElementById(`stint-time-${id}`);
+                if (stintTimeWidget) {
+                    // Si la voiture est encore en train de ravitailler (IN ou FUEL), le relais n'a pas commencé
+                    if (localCar.carState === "IN" || localCar.carState === "FUEL") {
+                        stintTimeWidget.innerText = "🛒 Stand";
+                    } else {
+                        stintTimeWidget.innerText = minutesLeft > 0 ? `~ ${minutesLeft} min` : "🚨 BOX !";
+                    }
+                }
+
+                // --- 👤 PROCHAIN PILOTE (NEXT) ---
+                const nextPilotIdx = localCar.rotation[1] || "2";
+                const nextPilotName = window.pilotsDatabase[id][nextPilotIdx] || `P${nextPilotIdx}`;
+                const nextPilotWidget = document.getElementById(`next-pilot-${id}`);
+                if (nextPilotWidget) nextPilotWidget.innerText = nextPilotName;
+
+                // STOP ESTIMÉ HEURE
+                if(lapsLeft > 0) {
+                    const refS = window.weatherMode === "sec" ? 185 : 205;
+                    const heureC = new Date(Date.now() + (lapsLeft * refS * (window.isFCY?1.4:1.0) * 1000));
+                    document.getElementById(`target-time-${id}`).innerText = `🚨 STOP ESTIMÉ : ${String(heureC.getHours()).padStart(2,'0')}:${String(heureC.getMinutes()).padStart(2,'0')}:${String(heureC.getSeconds()).padStart(2,'0')}`;
+                } else { document.getElementById(`target-time-${id}`).innerText = window.isRedFlag?"🚨 COURSE EN PAUSE":"🚨 PANNE IMMINENTE"; }
+
+                // --- GESTION VISUELLE SELON LES 4 MODES (RUN, IN, FUEL, OUT) ---
                 const card = document.getElementById(`card-${id}`); const badge = document.getElementById(`badge-${id}`);
                 card.className = "car-card";
                 
-                if(localCar.isInsidePit) {
-                    card.classList.add("state-pit"); badge.innerText = "Au Stand"; badge.className = "status-badge badge-stand";
+                let bText = "En Piste"; let bClass = "status-badge badge-piste";
+                
+                // Affichage des modules d'options et timers selon si la voiture est dans la pitlane ou non
+                if (localCar.isInsidePit || localCar.carState === "IN" || localCar.carState === "FUEL" || localCar.carState === "OUT") {
                     document.getElementById(`opt-box-${id}`).style.display = "flex";
-                    document.getElementById(`btn-lap-${id}`).style.display = "none"; document.getElementById(`btn-pit-${id}`).style.display = "none"; document.getElementById(`btn-exit-${id}`).style.display = "block";
+                    document.getElementById(`btn-lap-${id}`).style.display = "none"; 
+                    document.getElementById(`btn-pit-${id}`).style.display = "none"; 
+                    document.getElementById(`btn-exit-${id}`).style.display = "block"; 
+                    document.getElementById(`pit-timer-${id}`).style.display = "block";
                 } else {
                     document.getElementById(`opt-box-${id}`).style.display = "none";
-                    document.getElementById(`btn-lap-${id}`).style.display = "block"; document.getElementById(`btn-pit-${id}`).style.display = "block"; document.getElementById(`btn-exit-${id}`).style.display = "none";
-                    if(lapsLeft <= alertLimit) { card.classList.add("state-alert"); badge.innerText = "ALERTE ESSENCE"; badge.className = "status-badge badge-alert"; }
-                    else if(window.isFCY) { card.classList.add("state-fcy"); badge.innerText = "FCY SLOW"; badge.className = "status-badge badge-fcy"; }
-                    else { badge.innerText = "En Piste"; badge.className = "status-badge badge-piste"; }
+                    document.getElementById(`btn-lap-${id}`).style.display = "block"; 
+                    document.getElementById(`btn-pit-${id}`).style.display = "block"; 
+                    document.getElementById(`btn-exit-${id}`).style.display = "none"; 
+                    document.getElementById(`pit-timer-${id}`).style.display = "none";
                 }
+
+                // Application des styles de cartes selon l'état exact
+                if (window.isRedFlag) { 
+                    card.classList.add("state-red-flag"); 
+                    bText = "COURSE ARRÊTÉE"; 
+                    bClass = "status-badge badge-alert"; 
+                }
+                else if (localCar.carState === "IN") {
+                    card.classList.add("state-pit"); 
+                    bText = "Entrée Stand (IN)"; 
+                    bClass = "status-badge badge-stand";
+                }
+                else if (localCar.carState === "FUEL") {
+                    card.style.borderLeft = "4px solid #3498db"; // Bordure Bleue pour la pompe
+                    card.style.backgroundColor = "#07111a";
+                    bText = "⚡ RAVITAILLEMENT (FUEL)"; 
+                    bClass = "status-badge";
+                    badge.style.backgroundColor = "rgba(52, 152, 219, 0.2)";
+                    badge.style.color = "#3498db";
+                }
+                else if (localCar.carState === "OUT") {
+                    card.classList.add("state-pit");
+                    bText = "Sortie Pompe (OUT)"; 
+                    bClass = "status-badge badge-stand";
+                }
+                else {
+                    // Mode RUN classique en piste
+                    if (lapsLeft <= alertLimit) { 
+                        card.classList.add("state-alert"); 
+                        bText = "ALERTE ESSENCE"; 
+                        bClass = "status-badge badge-alert"; 
+                        
+                        if (!localCar.hasAlerted && lapsLeft > 0) { 
+                            localCar.hasAlerted = true; 
+                            window.triggerRacePopup("fuel", "⚠️ ALERTE ESSENCE CRITIQUE", `La voiture #${window.carIdMapping[id]} n'a plus que ${lapsLeft} tours ! BOX CE TOUR !`); 
+                        } 
+                    }
+                    else if (window.isFCY) { 
+                        card.classList.add("state-fcy"); 
+                        bText = "FCY SLOW"; 
+                        bClass = "status-badge badge-fcy"; 
+                    }
+                }
+                badge.innerText = bText; 
+                badge.className = bClass;
             }
         }
 
