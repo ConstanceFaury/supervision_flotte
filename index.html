@@ -422,7 +422,8 @@
                         </div>
                         <div class="stats-row">
                             <div class="stat-item"><text>Pos</text><val id="fleet-pos-${id}">-</val></div>
-                            <div class="stat-item"><text>Dernier Passage</text><val id="fleet-lap-${id}">Tour 0</val></div>
+                            <div class="stat-item"><text>Passage</text><val id="fleet-lap-${id}">Tour 0</val></div>
+                            <div class="stat-item" style="text-align: right;"><text>Arrêts (Stints)</text><val id="fleet-stints-${id}" style="color: var(--4race-coral);">0</val></div>
                         </div>
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <div><span style="font-size:9px; color:var(--4race-text-muted); text-transform:uppercase; font-weight:bold;">Pilote</span><div id="fleet-pilot-${id}" style="font-weight:bold;">-</div></div>
@@ -632,7 +633,7 @@
             window.dbPushFullRaceState();
             window.updateVisualsFromState();
         };
-        window.updateVisualsFromState = function() {
+      window.updateVisualsFromState = function() {
             const maxFuel = parseFloat(document.getElementById("setup-maxFuel")?.value) || 42;
             const alertLimit = parseInt(document.getElementById("setup-alertLimit")?.value) || 3;
 
@@ -654,15 +655,18 @@
                 document.getElementById(`bar-${id}`).style.width = ((essenceActuelle / maxFuel) * 100) + "%";
                 document.getElementById(`fleet-lap-${id}`).innerText = "Tour " + localCar.currentLap;
 
+                // 📊 INJECTION : Affichage dynamique du nombre de relais effectués
+                if(document.getElementById(`fleet-stints-${id}`)) {
+                    document.getElementById(`fleet-stints-${id}`).innerText = localCar.totalStintsDone || 0;
+                }
+
                 let coeff = window.weatherMode === "forte_pluie" ? 0.40 : (window.isFCY ? 0.50 : (window.weatherMode === "pluie_moderee" ? 0.75 : 1.0));
                 let currentConso = (localCar.conso[pilotIdx]?.sec || 1.77) * coeff; if(window.isRedFlag) currentConso = 0;
 
-              const lapsLeft = currentConso > 0 ? Math.floor(localCar.fuel / currentConso) : 0;
+                const lapsLeft = currentConso > 0 ? Math.floor(localCar.fuel / currentConso) : 0;
                 document.getElementById(`laps-${id}`).innerText = lapsLeft;
                 document.getElementById(`predict-box-${id}`).innerText = `🎯 Arrêt idéal : Tour ${localCar.currentLap + lapsLeft}`;
 
-                // =========================================================================
-                // 📥 METS TON BLOC EXACTEMENT ICI (À LA PLACE DE L'ANCIENNE LIGNE REFSEC)
                 // =========================================================================
                 // --- ⏳ CALCUL DES MINUTES ET TOURS DU RELAIS SELON LE CIRCUIT ---
                 const circuitInfo = window.circuitsDatabase[window.selectedCircuit || "SPA"];
@@ -673,7 +677,6 @@
                 // =========================================================================
 
                 // --- ⏳ CALCULS RÉGLEMENTAIRES DU SÉCURITÉ ROULAGE PILOTE ---
-         // --- ⏳ CALCULS RÉGLEMENTAIRES DU SÉCURITÉ ROULAGE PILOTE ---
                 const stintTimeWidget = document.getElementById(`stint-time-${id}`);
                 if (stintTimeWidget) {
                     if (localCar.carState === "IN" || localCar.carState === "FUEL") {
@@ -695,8 +698,8 @@
                             else { stintTimeWidget.style.color = "var(--state-green)"; }
                             
                         } else {
-                            // MODE FENÊTRE DE RAVITAILLEMENT (Ex: Courses de 8h avec fenêtres toutes les 40 min)[cite: 1]
-                            const targetWindowTours = circuitInfo?.limitValue || 40; // 40 tours ou minutes par défaut[cite: 1]
+                            // MODE FENÊTRE DE RAVITAILLEMENT (Ex: Courses de 8h avec fenêtres toutes les 40 min)
+                            const targetWindowTours = circuitInfo?.limitValue || 40; // 40 tours ou minutes par défaut
                             const tourActuelDansRelais = localCar.currentLap;
                             const resteAvantFenetre = targetWindowTours - (tourActuelDansRelais % targetWindowTours);
                             
@@ -780,8 +783,9 @@
                 badge.innerText = bText; 
                 badge.className = bClass;
             }
+            
         };
-
+        
         buildHTMLElementsStructure();
         window.handleCircuitRegulationChange = function(val) {
             window.selectedCircuit = val;
